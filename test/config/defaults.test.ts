@@ -65,13 +65,11 @@ it.each([
   // When: configuration is loaded.
   const result = await loadConfig(repo, env);
 
-  // Then: the harness is enabled, with no executable assets implicitly selected.
+  // Then: the harness is enabled with default runtime options.
   expect(result.config?.harnesses[name]).toEqual({
     enabled: true,
     path,
-    assets: [],
     options: name === "omo" ? { agentDir: "/home/alice/.omo/agent" } : {},
-    replaceAgents: {},
   });
 });
 

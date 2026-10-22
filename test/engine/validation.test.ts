@@ -84,8 +84,8 @@ it("reports a gated skill reference when it appears in an effective rule", async
   );
 });
 
-it("validates asset JSONC when executable assets are not implicitly selected", async () => {
-  // Given: a malformed JSONC source in an opt-in asset tree.
+it("validates asset JSONC when a harness asset is discovered", async () => {
+  // Given: a malformed JSONC source in a harness asset tree.
   const directory = join(sample.repo, "harnesses/opencode/assets/example");
   await mkdir(directory, { recursive: true });
   const file = join(directory, "settings.jsonc");

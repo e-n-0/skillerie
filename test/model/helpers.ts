@@ -30,19 +30,15 @@ export function config(root: string, values: Partial<ResolvedConfig> = {}): Reso
       opencode: {
         enabled: true,
         path: "/home/alice/.config/opencode",
-        assets: [],
         options: {},
-        replaceAgents: {},
       },
       codex: {
         enabled: true,
         path: "/home/alice/.codex",
-        assets: [],
         options: {},
-        replaceAgents: {},
       },
-      omo: { enabled: true, path: "/home/alice/.omo", assets: [], options: {}, replaceAgents: {} },
-      pi: { enabled: false, path: "/home/alice/.pi", assets: [], options: {}, replaceAgents: {} },
+      omo: { enabled: true, path: "/home/alice/.omo", options: {} },
+      pi: { enabled: false, path: "/home/alice/.pi", options: {} },
     },
     paths: {
       repo: root,

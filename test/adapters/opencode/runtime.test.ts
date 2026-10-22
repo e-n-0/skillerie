@@ -40,7 +40,7 @@ it("uses the home fallback when XDG config home is empty", () => {
 });
 
 it("describes all installed namespaces when runtime assets are selected", () => {
-  // Given: opt-in TUI settings and plugins.
+  // Given: selected TUI settings and plugins.
   const ctx = sample.ctx;
   const sources = ctx.model.harnesses.opencode;
   if (!sources) throw new TypeError("The sample requires OpenCode sources.");
@@ -92,7 +92,7 @@ it("describes all installed namespaces when runtime assets are selected", () => 
 });
 
 it("passes selected assets through without translating plugin code", async () => {
-  // Given: opt-in plugin code and TUI settings.
+  // Given: selected plugin code and TUI settings.
   const sources = sample.ctx.model.harnesses.opencode;
   if (!sources) throw new TypeError("The sample requires OpenCode sources.");
   const plugins = join(sample.root, "plugins");

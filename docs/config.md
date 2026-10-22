@@ -12,7 +12,7 @@ rules/<name>.md
 bin/                        # helper scripts, referenced from mcp.json with ${repo}/bin/...
 harnesses/<harness>/
   templates/                # native settings files, merged with generated content
-  assets/<name>             # opt-in files or directories, linked as-is
+  assets/<name>             # automatically selected files or directories, linked as-is
   seeds/                    # copied only when missing
   skills/<name>/SKILL.md    # skills for this harness only
   agents/<name>.md          # agents for this harness only
@@ -103,7 +103,6 @@ harnesses:
     path: ~/.codex
   omo:
     enabled: true
-    replaceAgents: { explorer: explore }
   pi:
     enabled: false
 ```
@@ -113,9 +112,7 @@ harnesses:
 |-|-|-|-|
 | `enabled` | boolean | `true` | `false` keeps the entry but skips the harness |
 | `path` | string | see below | Install root (the harness home) |
-| `assets` | list of names | `[]` | Assets to install for this harness; nothing is enabled implicitly |
 | `options` | JSON object | `{}` | Harness-specific options |
-| `replaceAgents` | map of name to name | `{}` | Used by OMO only |
 
 Default `path` values:
 
@@ -128,8 +125,6 @@ Default `path` values:
 | `pi` | `~/.pi/agent` |
 
 OMO keeps agent content in a separate directory. Set it with `options.agentDir`; the default is `<path>/agent`, and the `OMO_CODING_AGENT_DIR` environment variable takes precedence over both. No other `options` keys are read today.
-
-`replaceAgents` maps an agent name used in your sources to a native OMO agent. A source agent whose name appears as a key is not generated for OMO, and references to it are rewritten to the native name. See [harnesses/omo.md](harnesses/omo.md).
 
 ### sources
 
@@ -188,7 +183,7 @@ For each harness, an entity is selected when:
 2. Its name isn't in the global or the per-harness `disabled` list.
 3. Its override sets `enabled: true`, or, without that, the effective `enabled` list is empty or contains it. A nonempty per-harness `enabled` list replaces the global one. An override with `enabled: false` deselects it.
 
-Assets also have to be listed in `harnesses.<harness>.assets`.
+Every discovered asset is selected for its owning harness by default. Use `assets.enabled`, `assets.disabled`, `assets.overrides`, or `assets.harnesses.<harness>` to change that selection.
 
 ### Overrides
 

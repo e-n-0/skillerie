@@ -22,25 +22,13 @@ OMO splits its files across two directories:
 | `<agent dir>/models.json` | link | Only when you provide a `models.json` template |
 | `<agent dir>/settings.json` | JSON array merge | Skill exclusions, with `shared.agentsSkillsDir: dedupe` |
 
-Seeds from `harnesses/omo/seeds/` are copied into the agent directory when missing. Assets are linked into the agent directory under their own names.
+Seeds from `harnesses/omo/seeds/` are copied into the agent directory when missing. Discovered assets are selected automatically and linked into the agent directory under their own names; use `assets` entity selection to exclude them.
 
 ## omo.jsonc
 
 Put your settings in `harnesses/omo/templates/omo.jsonc`. Every source agent is written into `"[native]".agents`. You can still set fields for a generated agent in the template's `"[native]".agents.<name>`, and they're merged over the generated entry, but setting its `prompt` or `description` there is an error. Template entries for agents skillerie doesn't generate are kept as they are.
 
-## Agent replacements
-
-`harnesses.omo.replaceAgents` maps your agent names to OMO's native agents:
-
-```yaml
-harnesses:
-  omo:
-    replaceAgents:
-      explorer: explore
-      reviewer: code-reviewer
-```
-
-A source agent named as a key isn't generated for OMO, and references to it in skills and agents are rewritten to the native name. `Explore` always maps to `explore`.
+Use `agents.harnesses.omo.disabled` to keep an agent out of OMO.
 
 Generated agents get `description`, `prompt`, and `max_turns` (from `maxTurns`). The prompt starts with a few notes: inherit the parent model, pass questions to the parent, and read the listed `skills` first.
 

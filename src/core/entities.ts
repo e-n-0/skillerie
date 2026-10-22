@@ -107,7 +107,7 @@ export interface HarnessTemplates {
   readonly files: readonly HarnessTemplate[];
 }
 
-/** An opt-in file or directory that an adapter may describe as an install action. */
+/** A harness-scoped file or directory described by an adapter as an install action. */
 export interface Asset extends Entity {
   readonly sourcePath: string;
   readonly relPath: string;

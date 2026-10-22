@@ -4,7 +4,7 @@ import { afterEach, beforeEach, expect, it } from "vitest";
 import { loadConfig } from "../../src/config/index.js";
 import { lintModel } from "../../src/lint/index.js";
 import { discoverSources } from "../../src/model/index.js";
-import { agent, discover, fixture, skill, config } from "./helpers.js";
+import { agent, discover, fixture, skill } from "./helpers.js";
 
 let repo: Awaited<ReturnType<typeof fixture>>;
 beforeEach(async () => {
@@ -147,23 +147,11 @@ it("discovers harness resources when templates assets and seeds exist", async ()
   expect(model.bin[0]?.relPath).toBe("helper.sh");
 });
 
-it("discovers empty assets when an opted-in directory has no files", async () => {
+it("discovers empty assets when a harness directory has no files", async () => {
   // Given
   await mkdir(join(repo.root, "harnesses/omo/assets/empty"), { recursive: true });
-  const base = config(repo.root);
   // When
-  const model = await discover(repo.root, {
-    harnesses: {
-      omo: {
-        ...base.harnesses.omo,
-        enabled: true,
-        path: "/home/alice/.omo",
-        assets: ["empty"],
-        options: {},
-        replaceAgents: {},
-      },
-    },
-  });
+  const model = await discover(repo.root);
   // Then
   expect(model.harnesses.omo?.assets[0]).toMatchObject({ name: "empty", kind: "directory" });
 });

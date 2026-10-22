@@ -142,7 +142,7 @@ Agent names in backticks and in `Task`/`Agent` calls are resolved per harness. A
 |-|-|
 | OpenCode | `Explore` to `explore`, `general-purpose` to `general` |
 | Codex | `Explore` to `explorer`, `Plan` to `default` |
-| OMO | `Explore` to `explore`, plus `harnesses.omo.replaceAgents` |
+| OMO | `Explore` to `explore` |
 | Pi | `Explore` to `explorer` |
 
 Codex and Pi always get a generated `general-purpose` agent.

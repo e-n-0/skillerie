@@ -9,7 +9,6 @@ import type {
   Skill,
 } from "../../core/types.js";
 import { readTree } from "../../model/files.js";
-import { capabilitiesFor } from "./capabilities.js";
 import { convertText } from "./conversion.js";
 
 export function file(relPath: string, content: string | Buffer, mode = 0o644): RenderedFile {
@@ -84,7 +83,6 @@ function skillGuidance(skill: Skill, sourceText: string): string {
 }
 
 export function renderAgents(ctx: ResolvedContext, diagnostics: Diagnostic[]): JsonObject {
-  const replacements = capabilitiesFor(ctx).nativeAgentReplacements;
   const entries: [string, JsonObject][] = [];
   for (const agent of ctx.model.harnesses.omo?.agents ?? []) {
     const { frontmatter } = agent;
@@ -106,7 +104,6 @@ export function renderAgents(ctx: ResolvedContext, diagnostics: Diagnostic[]): J
         });
       }
     }
-    if (Object.hasOwn(replacements, agent.name)) continue;
     const converted = convertText(agent.body, ctx, { file: agent.file, childAgent: true });
     diagnostics.push(...converted.diagnostics);
     const preload = frontmatter.skills ?? [];

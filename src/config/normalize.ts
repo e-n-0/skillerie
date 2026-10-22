@@ -42,9 +42,7 @@ export function normalizeConfig(
     harnesses[name] = {
       enabled: value.enabled ?? true,
       path,
-      assets: value.assets ?? [],
       options,
-      replaceAgents: value.replaceAgents ?? {},
     };
   }
   const config: LoadedConfig = {

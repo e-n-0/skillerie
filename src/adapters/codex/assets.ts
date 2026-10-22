@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import type { ResolvedContext } from "../../core/types.js";
+import { relativePath } from "../../model/files.js";
 
 export interface AssetFile {
   readonly sourcePath: string;
@@ -10,7 +11,7 @@ export interface AssetFile {
 export function assetFiles(ctx: ResolvedContext): readonly AssetFile[] {
   const result: AssetFile[] = [];
   for (const asset of ctx.model.harnesses.codex?.assets ?? []) {
-    const prefix = `harnesses/codex/assets/${asset.relPath}`;
+    const prefix = relativePath(ctx.model.repoDir, asset.sourcePath);
     const files =
       asset.kind === "file"
         ? [{ sourcePath: asset.sourcePath, relPath: asset.relPath }]

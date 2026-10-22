@@ -52,24 +52,6 @@ export function withTemplates(ctx: ResolvedContext, values: Readonly<Record<stri
   };
 }
 
-export function withReplacements(
-  ctx: ResolvedContext,
-  replaceAgents: Readonly<Record<string, string>>,
-) {
-  const harness = ctx.snapshot.config.harnesses.omo;
-  if (harness === undefined) throw new TypeError("Missing OMO harness.");
-  return {
-    ...ctx,
-    snapshot: {
-      ...ctx.snapshot,
-      config: {
-        ...ctx.snapshot.config,
-        harnesses: { ...ctx.snapshot.config.harnesses, omo: { ...harness, replaceAgents } },
-      },
-    },
-  };
-}
-
 export function payload(call: string): unknown {
   return JSON.parse(call.slice(call.indexOf("(") + 1, -1));
 }

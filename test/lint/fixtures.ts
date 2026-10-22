@@ -11,30 +11,22 @@ const HARNESS_CONFIG = {
   opencode: {
     enabled: true,
     path: "/home/alice/.config/opencode",
-    assets: [],
     options: {},
-    replaceAgents: {},
   },
   codex: {
     enabled: true,
     path: "/home/alice/.codex",
-    assets: [],
     options: {},
-    replaceAgents: {},
   },
   omo: {
     enabled: true,
     path: "/home/alice/.omo",
-    assets: [],
     options: {},
-    replaceAgents: {},
   },
   pi: {
     enabled: true,
     path: "/home/alice/.pi",
-    assets: [],
     options: {},
-    replaceAgents: {},
   },
 } satisfies ResolvedConfig["harnesses"];
 

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it } from "vitest";
-import { agent, config, discover, fixture, settings, skill } from "./helpers.js";
+import { agent, discover, fixture, settings, skill } from "./helpers.js";
 
 let repo: Awaited<ReturnType<typeof fixture>>;
 beforeEach(async () => {
@@ -115,25 +115,23 @@ it("uses authored empty paths when a rule overrides configured globs", async () 
   expect(model.rules.find((rule) => rule.name === "fallback")?.paths).toEqual(["test/**"]);
 });
 
-it("omits executable assets when they were not explicitly opted in", async () => {
+it("selects discovered assets automatically for their owning harness", async () => {
   // Given
   await repo.put("harnesses/omo/assets/plugins/plugin.js", "export {};\n");
   // When
   const model = await discover(repo.root);
   // Then
   expect(model.assets).toHaveLength(1);
-  expect(model.assets[0]?.harnesses).toEqual([]);
-  expect(model.harnesses.omo?.assets).toEqual([]);
+  expect(model.assets[0]?.harnesses).toEqual(["omo"]);
+  expect(model.harnesses.omo?.assets.map((asset) => asset.name)).toEqual(["plugins"]);
+  expect(model.harnesses.codex?.assets).toEqual([]);
 });
 
-it("enables opted-in assets when selection permits their harness", async () => {
+it("applies asset requirements when selection permits their harness", async () => {
   // Given
   await repo.put("harnesses/omo/assets/plugins/plugin.js", "export {};\n");
-  const harness = config(repo.root).harnesses.omo;
-  if (!harness) throw new Error("Missing test harness");
   // When
   const model = await discover(repo.root, {
-    harnesses: { omo: { ...harness, assets: ["plugins"] } },
     assets: settings({ overrides: { plugins: { requires: { bin: "node" } } } }),
   });
   // Then
@@ -142,4 +140,29 @@ it("enables opted-in assets when selection permits their harness", async () => {
     requires: { bin: "node" },
     harnesses: ["omo"],
   });
+});
+
+it.each([
+  settings({ enabled: ["other"] }),
+  settings({ disabled: ["plugins"], overrides: { plugins: { enabled: true } } }),
+  settings({ overrides: { plugins: { enabled: false } } }),
+  settings({
+    harnesses: { omo: { enabled: ["other"], disabled: [], overrides: {} } },
+  }),
+  settings({
+    harnesses: {
+      omo: { enabled: [], disabled: ["plugins"], overrides: { plugins: { enabled: true } } },
+    },
+  }),
+  settings({
+    harnesses: { omo: { enabled: [], disabled: [], overrides: { plugins: { enabled: false } } } },
+  }),
+])("deselects discovered assets when normal selection excludes them: %j", async (assets) => {
+  // Given: a discovered harness asset.
+  await repo.put("harnesses/omo/assets/plugins/plugin.js", "export {};\n");
+  // When: entity selection excludes the asset.
+  const model = await discover(repo.root, { assets });
+  // Then: the inventory retains it without selecting it for rendering.
+  expect(model.assets[0]?.harnesses).toEqual([]);
+  expect(model.harnesses.omo?.assets).toEqual([]);
 });
