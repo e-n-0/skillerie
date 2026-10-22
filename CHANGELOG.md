@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.5 - 2026-10-22
+
+### Documentation
+
+- New README with a quickstart and a prompt for setting skillerie up through a coding agent, backed by an agent setup guide for importing an existing setup. (#4)
+
 ## 0.0.4 - 2026-10-22
 
 ### Fixes
