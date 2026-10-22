@@ -10,6 +10,7 @@ import { selectSnapshot } from "./selection.js";
 import { HARNESS_IDS, hasErrors } from "./types.js";
 import type { SyncOptions, SyncResult } from "./types.js";
 import { validateRepo } from "./validation.js";
+import { externalStateFiles } from "./external/state.js";
 
 async function currentExists(path: string): Promise<boolean> {
   try {
@@ -42,7 +43,7 @@ export async function syncRepo(repoDir: string, options: SyncOptions = {}): Prom
   );
   const adapters = options.adapters ?? registry;
   const effectiveSnapshot = options.harness ? selectSnapshot(snapshot, options.harness) : snapshot;
-  const files: RenderedFile[] = [];
+  const files: RenderedFile[] = [...externalStateFiles(effectiveSnapshot)];
   for (const harness of selected) {
     const load = adapters.get(harness);
     if (!load) continue;

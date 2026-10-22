@@ -3,6 +3,7 @@ import { isAbsolute, join } from "node:path";
 import { hasCode } from "./images.js";
 import { jsonValue } from "./json.js";
 import { InstallError } from "./types.js";
+import { parseExternalRevisions } from "../model/external-state.js";
 import type { Image, Journal, ManagedEntry, Manifest, MergeRecord, RepoIdentity } from "./types.js";
 
 function object(value: unknown): Record<string, unknown> {
@@ -124,6 +125,9 @@ export async function readManifest(home: string): Promise<Manifest | undefined> 
   };
   return {
     version: 1,
+    ...(value["external"] === undefined
+      ? {}
+      : { external: parseExternalRevisions(value["external"]) }),
     repo: identity,
     harness,
     engineVersion: string(value["engineVersion"]),

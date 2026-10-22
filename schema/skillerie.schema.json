@@ -41,7 +41,7 @@
         "harnesses": { "type": "string", "minLength": 1 }
       }
     },
-    "skills": { "$ref": "#/$defs/entities" },
+    "skills": { "$ref": "#/$defs/skills" },
     "agents": { "$ref": "#/$defs/entities" },
     "rules": { "$ref": "#/$defs/entities" },
     "assets": { "$ref": "#/$defs/entities" },
@@ -202,6 +202,40 @@
           "type": "object",
           "additionalProperties": { "$ref": "#/$defs/override" }
         }
+      }
+    },
+    "externalSkill": {
+      "type": "object",
+      "required": ["url"],
+      "additionalProperties": false,
+      "properties": {
+        "url": { "type": "string", "minLength": 1 },
+        "ref": { "type": "string", "minLength": 1 },
+        "path": { "type": "string" },
+        "include": { "$ref": "#/$defs/names" }
+      }
+    },
+    "skills": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "$ref": "#/$defs/names" },
+        "disabled": { "$ref": "#/$defs/names" },
+        "overrides": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/override" }
+        },
+        "harnesses": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "opencode": { "$ref": "#/$defs/selection" },
+            "codex": { "$ref": "#/$defs/selection" },
+            "omo": { "$ref": "#/$defs/selection" },
+            "pi": { "$ref": "#/$defs/selection" }
+          }
+        },
+        "external": { "type": "array", "items": { "$ref": "#/$defs/externalSkill" } }
       }
     },
     "entities": {

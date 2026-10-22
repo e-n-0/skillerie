@@ -31,7 +31,7 @@ Model identifiers aren't checked against a catalog, so custom providers work. De
 
 ## Skills and commands
 
-Each skill's frontmatter is reduced to `name`, `description`, `license`, and `compatibility`, followed by short guidance about support paths and `$ARGUMENTS`. `$ARGUMENTS` is kept as written. Skills with `user-invocable: true` also get `commands/<name>.md`, which loads the skill and passes the invocation context.
+Each skill's frontmatter is reduced to `name`, `description`, `license`, and `compatibility`, followed by short guidance about support paths and `$ARGUMENTS`. `$ARGUMENTS` is kept as written. Skills get `commands/<name>.md` unless `user-invocable: false`; the command loads the skill and passes the invocation context.
 
 ## Agents
 

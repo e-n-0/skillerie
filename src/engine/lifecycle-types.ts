@@ -1,4 +1,4 @@
-import type { Diagnostic, HarnessId } from "../core/types.js";
+import type { Diagnostic, ExternalRevision, HarnessId } from "../core/types.js";
 import type { TreeDifference } from "../fs/index.js";
 import type { RepoIdentity } from "../install/index.js";
 import type { EngineOptions } from "./types.js";
@@ -29,6 +29,7 @@ export interface InstallationResult {
 }
 
 export interface LifecycleResult {
+  readonly external?: readonly ExternalRevision[];
   readonly valid: boolean;
   readonly diagnostics: readonly Diagnostic[];
   readonly installations: readonly InstallationResult[];

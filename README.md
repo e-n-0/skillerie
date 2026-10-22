@@ -46,6 +46,7 @@ npx skillerie install
 | `skillerie sync` | Render every enabled harness into a new generation; `--check` compares against the current one |
 | `skillerie install` | Render, activate the generation, and install it; `--check` is a dry run |
 | `skillerie status` | Report ownership of each harness home and any drift |
+| `skillerie outdated` | Compare external skills with upstream tags, branches, or the default branch |
 | `skillerie uninstall` | Remove managed links and restore merged files |
 | `skillerie doctor` | Check Node, harness CLIs and versions, rendered configs, required binaries, and writable homes |
 
@@ -78,7 +79,7 @@ skillerie only writes to a harness home during `install` and `uninstall`, and it
 - Manifest: each harness home gets `.skillerie/manifest.json`, which records the owning repository, every managed path with its fingerprint, and the original content of every file it replaced or merged into. A second repository can't install into the same home without `--takeover`.
 - Backups: before any existing file, link, or directory is replaced or removed, it is moved under `paths.backup` (default `~/.Trash/skillerie`). Nothing is deleted without a backup.
 - User edits: if you edit a managed file, `install` and `uninstall` leave it alone and report `USER-EDIT`. `install --force` backs it up and replaces it.
-- Dry run: `install --check` plans in memory. It doesn't create directories, write files, or take the lock.
+- Dry run: `install --check` plans without changing harness homes or taking a lock. External resolution may populate its cache.
 - Atomic generations: rendered output lives in a cache directory. Installed links point through a stable `current` symlink that is swapped atomically, and the previous generation is kept.
 - Journal and lock: each install takes a lock in the harness home and writes a journal before changing anything, so an interrupted install is finished on the next run.
 - Uninstall: `uninstall` removes managed links, restores merged blocks and replaced files from the manifest, and leaves seeds and edited files in place.

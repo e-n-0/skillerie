@@ -10,6 +10,8 @@ import type { Generation, TreeDifference } from "../fs/index.js";
 
 /** Dependencies captured once per invocation, including an optional test registry. */
 export interface EngineOptions {
+  /** Doctor resolves only from local external cache, without remote access. */
+  readonly offlineExternal?: boolean;
   readonly env?: Environment;
   readonly adapters?: ReadonlyMap<HarnessId, AdapterLoader>;
   readonly engineVersion?: string;

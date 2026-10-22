@@ -14,6 +14,8 @@ skillerie validate
 
 Loads `skillerie.yaml`, discovers sources, evaluates `requires`, runs lint rules, and checks agent restrictions against each enabled harness. Diagnostics go to stderr as `<severity> <file>[:<line>|#<pointer>] <code> <message>`. Exit status is 1 when there is at least one error.
 
+For external skills, diagnostic file locations use `<url>@<short-sha>/<path inside repository>` rather than the cache path. The same origin locations appear in JSON diagnostics and in the other commands.
+
 ### sync
 
 ```sh
@@ -34,7 +36,7 @@ Validates, renders, plans, and applies. You don't need to run `sync` first.
 | Flag | Effect |
 |-|-|
 | `--harness <h>` | Install one enabled harness. Every enabled harness is still rendered into the new generation so other installed homes keep working. |
-| `--check` | Print the plan and exit. Nothing is created or written and no lock is taken. |
+| `--check` | Print the plan and exit. No harness home is changed and no lock is taken; external resolution may populate its cache. |
 | `--force` | Back up and replace managed files you edited, instead of preserving them |
 | `--takeover` | Install into a home that another repository's manifest owns |
 
@@ -64,6 +66,22 @@ skillerie status
 
 Prints `OWNED <home> <repo>` or `UNOWNED <home>` for each enabled harness, followed by any pending changes, user edits, and generation drift. Exit status is 0 only when everything is installed and current.
 
+External entries also print `EXTERNAL <url> <ref> <short-sha> [path]`, using the active generation's revisions when available. An omitted ref is shown as `latest`. The JSON result includes the full revisions under `external`.
+
+### outdated
+
+```sh
+skillerie outdated [--repo <dir>] [--json]
+```
+
+Queries upstream for every `skills.external` entry and compares it with the active generation's recorded commit, or its install manifest. With no installed revision, the current remote resolution is the baseline.
+
+- Tags report newer semantic-version tags, for example `v1.2.0 -> v1.4.0 available`. Non-semver tags are ignored.
+- Branches and the default branch report `up to date` or `upstream moved <old>..<new>; run install`.
+- Full SHA pins report the default branch head when it differs.
+
+Human output has one line per entry. JSON includes `entries`, `diagnostics`, and `exitCode`; each entry has its ref, baseline `sha`, `latestSha`, `newerTags`, `status`, `outdated` boolean, and message. Exit status is 0 when current, 1 when any entry is behind (including a full SHA pin differing from the default head), and 2 on errors. The command does not update the cache index or active generation.
+
 ### uninstall
 
 ```sh
@@ -80,6 +98,8 @@ skillerie doctor
 
 Reports, for each enabled harness: whether its CLI is on `PATH`, its version against the adapter's supported range, whether its home and agent directory are writable, and, when the CLI is installed, whether the harness accepts the rendered configuration (a headless check through the harness CLI that writes nothing to your homes). It also checks the Node version, every binary named in a `requires.bin`, and skills in `~/.agents/skills` that shadow managed skills. A missing harness CLI is informational. Exit status is 1 only for errors, such as an unwritable home.
 
+External inspection stays offline: it reads cached skills and reports each entry's installed ref and short SHA, with a hint to run `skillerie outdated` for an upstream check.
+
 ### init
 
 ```sh
@@ -90,7 +110,7 @@ Creates `skillerie.yaml`, `instructions.md`, `mcp.json`, empty `skills/`, `agent
 
 ## Generations
 
-Rendered output goes to `<cache>/generations/<hash>/`, where `<hash>` identifies the input snapshot: resolved configuration, hashes of every source file, `requires` results, and the engine version. The same inputs always produce the same generation.
+Rendered output goes to `<cache>/generations/<hash>/`, where `<hash>` identifies the input snapshot: resolved configuration, hashes of every source file, resolved external commits, `requires` results, and the engine version. The same inputs always produce the same generation. Generations with external skills retain their revisions in `.skillerie-external.json`.
 
 `<cache>/current` is a symlink to the active generation. It is replaced atomically, and installed links go through it, so switching generations never leaves a half-updated home. skillerie keeps the current and the previous generation and deletes older ones.
 
@@ -114,7 +134,7 @@ Every harness home gets a `.skillerie/` directory:
 <!-- prettier-ignore -->
 | File | Purpose |
 |-|-|
-| `manifest.json` | Owning repository and config hash, engine version, every managed path with its fingerprint and the content it replaced, every merged block, and directories skillerie created |
+| `manifest.json` | Owning repository and config hash, engine version, resolved external revisions, every managed path with its fingerprint and the content it replaced, every merged block, and directories skillerie created |
 | `journal.json` | Present only while a transaction is in progress |
 | `lock` | Present only while an install or uninstall runs |
 

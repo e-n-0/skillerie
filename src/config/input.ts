@@ -3,6 +3,7 @@ import { Ajv2020 } from "ajv/dist/2020.js";
 import type {
   EntitySelection,
   EntitySettings,
+  ExternalSkillInput,
   HarnessMap,
   JsonObject,
   LintSeverity,
@@ -22,7 +23,7 @@ export interface ConfigInput {
   readonly harnesses?: HarnessMap<HarnessInput>;
   readonly paths?: Readonly<Record<string, string>>;
   readonly sources?: SourcePathInput;
-  readonly skills?: EntityInput;
+  readonly skills?: EntityInput & { readonly external?: readonly ExternalSkillInput[] };
   readonly agents?: EntityInput;
   readonly rules?: EntityInput;
   readonly assets?: EntityInput;

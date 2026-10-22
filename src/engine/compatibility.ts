@@ -52,6 +52,13 @@ function compare(left: Version, right: Version): number {
   return 0;
 }
 
+/** Full semantic versions only; non-version tags are not upgrade candidates. */
+export function compareSemverTags(left: string, right: string): number | undefined {
+  const a = version(left);
+  const b = version(right);
+  return a?.precision === 3 && b?.precision === 3 ? compare(a, b) : undefined;
+}
+
 function upperBound(target: Version, index: 0 | 1 | 2): Version {
   return {
     parts: [

@@ -1,5 +1,4 @@
 import { readFile } from "node:fs/promises";
-import { relative } from "node:path";
 import type {
   Diagnostic,
   JsonObject,
@@ -9,6 +8,7 @@ import type {
 } from "../../core/types.js";
 import { readTree } from "../../model/files.js";
 import { isJsonObject } from "../../model/json.js";
+import { externalOrigin, skillDirectory } from "../../model/external.js";
 import { resolveMcpServers } from "../../model/index.js";
 import { generalAgent, renderAgent } from "./agents.js";
 import { rewriteMarkdown } from "./markdown.js";
@@ -22,7 +22,7 @@ export async function render(ctx: ResolvedContext): Promise<RenderResult> {
     const rewrite = (text: string, file: string): string => {
       const result = rewriteMarkdown(text, {
         file,
-        skillDir: relative(ctx.model.repoDir, skill.dir).replaceAll("\\", "/"),
+        skillDir: skillDirectory(skill, ctx.model.repoDir),
         skillNames,
       });
       diagnostics.push(...result.diagnostics);
@@ -36,7 +36,7 @@ export async function render(ctx: ResolvedContext): Promise<RenderResult> {
     files.push({
       kind: "file",
       relPath: `skills/${skill.name}/SKILL.md`,
-      content: `---\n${frontmatter}\n---\n${rewrite(skill.body, skill.file)}`,
+      content: `---\n${frontmatter}\n---\n${skill.external ? `<!-- Source: ${externalOrigin(skill)?.replaceAll("--", "&#45;&#45;")}/SKILL.md -->\n` : ""}${rewrite(skill.body, skill.file)}`,
       mode: 0o644,
     });
     for (const support of skill.supportFiles) {

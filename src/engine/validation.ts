@@ -1,4 +1,4 @@
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { registry } from "../adapters/index.js";
 import { loadConfig } from "../config/index.js";
 import { lintModel } from "../lint/index.js";
@@ -12,6 +12,8 @@ import { resolveRequirements } from "./requirements.js";
 import { restrictionDiagnostics } from "./render.js";
 import { HARNESS_IDS, hasErrors } from "./types.js";
 import type { EngineOptions, ValidationResult } from "./types.js";
+import { resolveExternalSkills } from "./external/cache.js";
+import { externalDiagnostics } from "./diagnostics.js";
 
 export async function validateRepo(
   repoDir: string,
@@ -27,10 +29,21 @@ export async function validateRepo(
     ...checkEngineVersion(config.engine, engineVersion, resolve(repoDir, "skillerie.yaml")),
   );
   if (hasErrors(diagnostics)) return { diagnostics };
-  const discovered = await discoverSources(repoDir, config);
+  const external = await resolveExternalSkills(config, env, {
+    ...(options.offlineExternal === undefined ? {} : { offline: options.offlineExternal }),
+  });
+  const diagnosticSources = external.entries.map((entry) => ({
+    directory: join(entry.directory, entry.revision.path),
+    revision: entry.revision,
+  }));
+  diagnostics.push(...external.diagnostics);
+  if (hasErrors(diagnostics))
+    return { diagnostics: externalDiagnostics(diagnostics, diagnosticSources) };
+  const discovered = await discoverSources(repoDir, config, external.entries);
   diagnostics.push(...discovered.diagnostics);
   const source = discovered.model;
-  if (!source || hasErrors(diagnostics)) return { diagnostics };
+  if (!source || hasErrors(diagnostics))
+    return { diagnostics: externalDiagnostics(diagnostics, diagnosticSources) };
   diagnostics.push(...lintModel(source, config));
   diagnostics.push(...(await lintJsonSources(source)));
   const expanded = expandSources(source, {
@@ -39,7 +52,8 @@ export async function validateRepo(
     paths: config.paths,
   });
   diagnostics.push(...expanded.diagnostics);
-  if (hasErrors(diagnostics)) return { diagnostics };
+  if (hasErrors(diagnostics))
+    return { diagnostics: externalDiagnostics(diagnostics, diagnosticSources) };
   const os = options.os ?? process.platform;
   if (os !== "darwin" && os !== "linux") {
     diagnostics.push({
@@ -49,7 +63,7 @@ export async function validateRepo(
       file: resolve(repoDir, "skillerie.yaml"),
       jsonPath: "",
     });
-    return { diagnostics };
+    return { diagnostics: externalDiagnostics(diagnostics, diagnosticSources) };
   }
   const evaluated = await resolveRequirements(expanded.model, { env, os });
   const prior = new Set(diagnostics.map((item) => JSON.stringify(item)));
@@ -66,8 +80,13 @@ export async function validateRepo(
     const { adapter } = await load();
     diagnostics.push(...restrictionDiagnostics(adapter, evaluated.model));
   }
-  if (hasErrors(diagnostics)) return { diagnostics };
+  if (hasErrors(diagnostics))
+    return { diagnostics: externalDiagnostics(diagnostics, diagnosticSources) };
   // Snapshot the discovered inventory, whose captured bytes predate filtering/expansion.
   const snapshot = await buildSnapshot(config, source, evaluated.requires, engineVersion);
-  return { diagnostics, model: evaluated.model, snapshot };
+  return {
+    diagnostics: externalDiagnostics(diagnostics, diagnosticSources),
+    model: evaluated.model,
+    snapshot,
+  };
 }

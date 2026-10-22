@@ -52,7 +52,7 @@ export function normalizeConfig(
     harnesses,
     paths,
     sources: resolution.sources,
-    skills: entitySettings(input.skills),
+    skills: { ...entitySettings(input.skills), external: input.skills?.external ?? [] },
     agents: entitySettings(input.agents),
     rules: entitySettings(input.rules),
     assets: entitySettings(input.assets),

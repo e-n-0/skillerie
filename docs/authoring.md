@@ -11,6 +11,8 @@ Skill, agent, and rule names are lowercase tokens joined by hyphens, at most 64 
 
 A `name` field in frontmatter must match. Names must be unique within each kind, compared case-insensitively. Only files directly under `rules/` are rules; subdirectories are ignored.
 
+A single external skill can live at a repository root; its name comes from frontmatter rather than the checkout directory. Skills in an external collection follow the same directory-name rule as local skills.
+
 Sources must be regular files and directories. A symlink anywhere in a source tree is an error. `.git`, `.DS_Store`, `__pycache__`, and `*.pyc`/`*.pyo` are skipped.
 
 ## Skill frontmatter
@@ -30,8 +32,8 @@ allowed-tools: [Read, Grep, Bash]
 |-|-|-|-|
 | `name` | string | yes | Must match the directory name |
 | `description` | string | yes | Whitespace is collapsed; longer than 1024 characters is trimmed at a sentence boundary |
-| `argument-hint` | string | yes | Shown by harnesses that support it |
-| `user-invocable` | boolean | yes | OpenCode also gets a `/name` command when `true` |
+| `argument-hint` | string | no | No hint by default; shown by harnesses that support it |
+| `user-invocable` | boolean | no | Defaults to `true`; OpenCode also gets a `/name` command |
 | `allowed-tools` | string or list | no | Tool names in the dialect |
 | `disable-model-invocation` | boolean | no | Asks the harness not to pick the skill on its own |
 | `license` | string | no | |

@@ -52,7 +52,7 @@ it.each([
   );
 });
 
-it.each(["name", "description", "argument-hint", "user-invocable"])(
+it.each(["name", "description"])(
   "reports the missing field when a skill omits %s",
   async (field) => {
     // Given
@@ -69,6 +69,19 @@ it.each(["name", "description", "argument-hint", "user-invocable"])(
     );
   },
 );
+
+it("accepts a skill when invocation metadata is omitted", async () => {
+  // Given: a skill with only its required metadata.
+  await repo.put(
+    "skills/example/SKILL.md",
+    "---\nname: example\ndescription: example\n---\npayload\n",
+  );
+  // When: discovery parses the skill.
+  const result = await discoverSources(repo.root, config(repo.root));
+  // Then: no artificial invocation fields mask later configuration overrides.
+  expect(result.diagnostics).toEqual([]);
+  expect(result.model?.skills[0]?.frontmatter).toEqual({ name: "example", description: "example" });
+});
 
 it.each(["name", "description"])(
   "reports the missing field when an agent omits %s",

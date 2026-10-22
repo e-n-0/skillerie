@@ -1,15 +1,18 @@
 /**
  * Public engine contract. Import shared types from this entry point.
- * Paths are absolute unless explicitly named relPath. Arrays and records are
+ * Filesystem paths are absolute unless explicitly named relPath; diagnostic
+ * locations can instead identify external origins. Arrays and records are
  * readonly; Buffer contents are borrowed and must not be mutated by consumers.
  */
 export type * from "./primitives.js";
 export type * from "./config.js";
 export type * from "./entities.js";
+export type * from "./external.js";
 
 import type { Buffer } from "node:buffer";
 import type { ResolvedConfig } from "./config.js";
 import type { SourceModel } from "./entities.js";
+import type { ExternalRevision } from "./external.js";
 import type {
   ContentHash,
   Diagnostic,
@@ -31,6 +34,7 @@ export interface EntityRequiresResult {
 /** Immutable inputs sufficient to reproduce a generation without probing again. */
 export interface InputSnapshot {
   readonly config: ResolvedConfig;
+  readonly external?: readonly ExternalRevision[];
   /** Source-relative paths mapped to SHA-256 digests, including support files. */
   readonly sourceHashes: Readonly<Record<string, ContentHash>>;
   readonly requires: readonly EntityRequiresResult[];

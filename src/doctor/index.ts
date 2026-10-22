@@ -8,6 +8,9 @@ import {
   versionSatisfies,
 } from "./probes.js";
 import type { DoctorContext, DoctorOptions } from "./types.js";
+import { installedExternals } from "../engine/external/state.js";
+import { parseExternalUrl } from "../engine/external/url.js";
+import { externalDiagnostics, skillDiagnosticSources } from "../engine/diagnostics.js";
 
 export type { DoctorOptions } from "./types.js";
 
@@ -40,11 +43,32 @@ export async function runDoctor(options: DoctorOptions): Promise<readonly Diagno
     file: node.file,
     jsonPath: "/engines/node",
   };
+  const installed = await installedExternals(options.snapshot.config);
+  const external: Diagnostic[] = (options.snapshot.config.skills.external ?? []).map(
+    (input, index) => {
+      const parsed = parseExternalUrl(input);
+      const revision = installed.find(
+        (entry) =>
+          entry.url === input.url && entry.ref === parsed.ref && entry.path === parsed.path,
+      );
+      return {
+        severity: "info",
+        code: "doctor.external",
+        message: `${input.url} ${parsed.ref ?? "latest"} ${revision ? revision.sha.slice(0, 8) : "not installed"}; run skillerie outdated to check upstream.`,
+        file: `${options.snapshot.config.paths.repo}/skillerie.yaml`,
+        jsonPath: `/skills/external/${index}`,
+      };
+    },
+  );
 
-  return [
-    nodeDiagnostic,
-    ...(await checkRequiredBins(context)),
-    ...(await checkHarnesses(context)),
-    ...(await checkSharedSkills(context)),
-  ];
+  return externalDiagnostics(
+    [
+      nodeDiagnostic,
+      ...external,
+      ...(await checkRequiredBins(context)),
+      ...(await checkHarnesses(context)),
+      ...(await checkSharedSkills(context)),
+    ],
+    skillDiagnosticSources(options.model),
+  );
 }

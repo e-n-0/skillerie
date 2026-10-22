@@ -1,11 +1,12 @@
 import { createHash } from "node:crypto";
-import type { Action, HarnessId, ResolvedConfig } from "../core/types.js";
+import type { Action, ExternalRevision, HarnessId, ResolvedConfig } from "../core/types.js";
 import { InstallError } from "../install/index.js";
 import type { InstallOptions, InstallPlan, Manifest } from "../install/index.js";
 import { installLines } from "./install-output.js";
 import type { InstallationResult, LifecycleOptions } from "./lifecycle-types.js";
 
 export function installOptions(input: {
+  readonly external?: readonly ExternalRevision[];
   readonly config: ResolvedConfig;
   readonly harness: HarnessId;
   readonly actions: readonly Action[];
@@ -16,6 +17,7 @@ export function installOptions(input: {
   if (!harness)
     throw new InstallError("engine.harness", `Harness ${input.harness} is not configured.`);
   return {
+    ...(input.external?.length ? { external: input.external } : {}),
     repo: {
       path: input.config.paths.repo,
       configHash: `sha256:${createHash("sha256").update(JSON.stringify(input.config)).digest("hex")}`,

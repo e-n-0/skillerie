@@ -152,7 +152,7 @@ paths:
 
 ### Entity selection
 
-`skills`, `agents`, `rules`, and `assets` share one shape:
+`skills`, `agents`, `rules`, and `assets` share the following selection keys. Skills also accept [`external`](#skillsexternal).
 
 ```yaml
 skills:
@@ -185,6 +185,39 @@ For each harness, an entity is selected when:
 
 Every discovered asset is selected for its owning harness by default. Use `assets.enabled`, `assets.disabled`, `assets.overrides`, or `assets.harnesses.<harness>` to change that selection.
 
+### skills.external
+
+Load skills and their support files from git repositories:
+
+```yaml
+skills:
+  external:
+    - url: https://github.com/example/shared-skills
+      ref: v1.2.0
+      path: skills
+      include: [review, release]
+    - url: https://github.com/example/team-skills/tree/main/skills/debug
+    - url: git@github.com:example/private-skills.git
+      ref: stable
+    - url: file:///home/alice/local-skills
+```
+
+<!-- prettier-ignore -->
+| Key | Type | Default | Meaning |
+|-|-|-|-|
+| `url` | string | required | HTTPS or SSH git remote, `git@host:owner/repo.git`, `file://` repository, or GitHub repository/tree URL |
+| `ref` | string | remote default branch | Tag, branch, or full 40-character commit SHA; overrides a tree URL's ref |
+| `path` | string | repository root | Skill directory containing `SKILL.md`, or directory whose immediate subdirectories contain skills; overrides a tree URL's path |
+| `include` | list of names | all | Directory names to select from a directory of skills; an unknown name is an error |
+
+A GitHub `/tree/<ref>/<path>` URL supplies both the ref and path. Use an explicit `ref` for names containing slashes. Paths must stay inside the external repository. An omitted ref follows the remote's default branch ("latest"). Branches also follow upstream on each validation or install. Tags and full SHAs pin content. Short SHAs are rejected with a request for a tag, branch, or full SHA.
+
+The engine uses your system `git` and passes through your environment for credentials. Checkouts are shallow, stored under `<paths.cache>/external/<host/owner/repo>/<sha>/`, and published atomically. An existing commit directory is reused without fetching. Ref resolution still queries the remote for tags and branches. When that query or fetch fails, a previously used commit for that exact entry is used with a warning; without cached content, resolution fails. A cached full SHA works without contacting the remote. Resolution may populate this cache during `validate` or a check command; harness homes are not changed.
+
+External skills use the same selection, overrides, per-harness settings, `requires`, dialect conversion, and rendering as local skills. Their resolved commits enter the input snapshot and install manifest, so a moving branch changes the generation hash even if its skill files did not change.
+
+Names must not collide with local skills or other external skills. Use `include` to select a noncolliding subset, or `skills.disabled` to exclude a conflicting name globally. External structure, description-prefix, question, reference, and JSON support-file syntax findings are warnings rather than errors. Missing `SKILL.md`, unparseable frontmatter, and missing `name` or `description` remain errors.
+
 ### Overrides
 
 An override supplies fields for an entity from `skillerie.yaml`. Per-harness overrides are applied on top of global ones. Fields set in the entity's own frontmatter win over both, so overrides fill in what the source file leaves out. That makes them most useful for `requires` and for restrictions on shared skills you don't want to edit.
@@ -199,7 +232,8 @@ An override supplies fields for an entity from `skillerie.yaml`. Per-harness ove
 | `disable-model-invocation` | boolean | skills |
 | `license`, `compatibility` | string | skills |
 | `metadata` | JSON object | skills |
-| `name`, `description`, `argument-hint`, `user-invocable` | as in frontmatter | skills; required in frontmatter, so an override never takes effect |
+| `name`, `description` | string | skills; required in frontmatter, so an override never takes effect |
+| `argument-hint`, `user-invocable` | string, boolean | skills; fill omitted fields, with defaults of no hint and `true` |
 | `allowed_tools` | string or list | agents |
 | `skills` | list of names | agents |
 | `maxTurns` | integer, at least 1 | agents |
