@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import type { HarnessId } from "../core/types.js";
 import { CONFIG_VERSION } from "../version.js";
 
-/** Repository files are generated independently of the optional starter content. */
+/** Generate the configuration repository's initial files. */
 export function scaffoldFiles(
   harnesses: Readonly<Record<HarnessId, boolean>>,
   engineVersion: string,
@@ -14,7 +14,6 @@ export function scaffoldFiles(
     "skillerie.yaml": [
       "# yaml-language-server: $schema=./node_modules/skillerie/schema/skillerie.schema.json",
       `version: ${CONFIG_VERSION}`,
-      "starter: true",
       "",
       "harnesses:",
       ...Object.entries(harnesses).flatMap(([name, enabled]) => [

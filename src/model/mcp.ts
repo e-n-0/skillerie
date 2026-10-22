@@ -88,25 +88,6 @@ export function readMcp(
   };
 }
 
-export function mergeMcp(
-  starter: McpConfig | undefined,
-  user: McpConfig | undefined,
-): McpConfig | undefined {
-  if (!starter) return user;
-  if (!user) return starter;
-  return {
-    file: user.file,
-    mcpServers: { ...starter.mcpServers, ...user.mcpServers },
-    harnessOverrides: Object.fromEntries(
-      harnessIds.map((harness) => [
-        harness,
-        { ...starter.harnessOverrides[harness], ...user.harnessOverrides[harness] },
-      ]),
-    ),
-    settings: { ...starter.settings, ...user.settings },
-  };
-}
-
 /** A null per-harness override removes the complete server, never a nested field. */
 export function resolveMcpServers(
   mcp: McpConfig,

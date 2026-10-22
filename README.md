@@ -20,8 +20,6 @@ npx skillerie install
 
 `install --check` prints the plan without writing anything. It exits with status 1 while there is still work to do, so a nonzero exit before your first install is expected. `install` then renders a fresh generation and applies the plan.
 
-With `starter: true` (the `init` default), skillerie adds its bundled starter set of generic skills, agents, and rules. A skill or agent in your repository with the same name replaces the starter one, and `starter.exclude` drops individual items.
-
 ## Concepts
 
 <!-- prettier-ignore -->

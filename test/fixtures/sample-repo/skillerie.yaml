@@ -1,6 +1,5 @@
 version: 1
 dialect: 1
-starter: false
 harnesses:
   opencode:
     enabled: true

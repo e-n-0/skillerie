@@ -2,93 +2,11 @@ import { afterEach, beforeEach, expect, it } from "vitest";
 import { agent, config, discover, fixture, settings, skill } from "./helpers.js";
 
 let repo: Awaited<ReturnType<typeof fixture>>;
-let starter: Awaited<ReturnType<typeof fixture>>;
 beforeEach(async () => {
   repo = await fixture();
-  starter = await fixture();
 });
 afterEach(async () => {
   await repo.cleanup();
-  await starter.cleanup();
-});
-
-it("replaces the whole skill when user content shadows a starter name", async () => {
-  // Given
-  await starter.put("skills/example/SKILL.md", skill("example", "license: MIT\n"));
-  await starter.put("skills/example/obsolete.txt", "old");
-  await repo.put("skills/example/SKILL.md", skill("example"));
-  await repo.put("skills/example/current.txt", "new");
-  // When
-  const model = await discover(repo.root, {}, starter.root);
-  // Then
-  expect(model.skills[0]?.source).toBe("user");
-  expect(model.skills[0]?.supportFiles.map((file) => file.relPath)).toEqual(["current.txt"]);
-  expect(model.skills[0]?.frontmatter.license).toBeUndefined();
-});
-
-it("replaces agents and rules when user names shadow starter entities", async () => {
-  // Given
-  await starter.put("agents/reviewer.md", agent("reviewer", "maxTurns: 1\n"));
-  await repo.put("agents/reviewer.md", agent("reviewer", "maxTurns: 2\n"));
-  await starter.put("rules/shared.md", "---\npaths: ['old/**']\n---\nold\n");
-  await repo.put("rules/shared.md", "---\npaths: ['new/**']\n---\nnew\n");
-  // When
-  const model = await discover(repo.root, {}, starter.root);
-  // Then
-  expect(model.agents[0]?.frontmatter.maxTurns).toBe(2);
-  expect(model.rules[0]?.paths).toEqual(["new/**"]);
-});
-
-it("retains starter provenance when no user entity shadows it", async () => {
-  // Given
-  await starter.put("skills/example/SKILL.md", skill("example"));
-  // When
-  const model = await discover(repo.root, {}, starter.root);
-  // Then
-  expect(model.skills[0]?.source).toBe("starter");
-});
-
-it("omits all starter content when starter is disabled", async () => {
-  // Given
-  await starter.put("skills/example/SKILL.md", "invalid");
-  await starter.put("instructions.md", "starter");
-  // When
-  const model = await discover(
-    repo.root,
-    { starter: { enabled: false, exclude: [] } },
-    starter.root,
-  );
-  // Then
-  expect(model.skills).toEqual([]);
-  expect(model.instructions).toBeUndefined();
-});
-
-it("excludes starter names without excluding their user replacements", async () => {
-  // Given
-  await starter.put("skills/example/SKILL.md", "invalid");
-  await starter.put("agents/reviewer.md", agent("reviewer"));
-  await starter.put("rules/shared.md", "rule");
-  await repo.put("skills/example/SKILL.md", skill("example"));
-  // When
-  const model = await discover(
-    repo.root,
-    { starter: { enabled: true, exclude: ["example", "reviewer", "shared"] } },
-    starter.root,
-  );
-  // Then
-  expect(model.skills[0]?.source).toBe("user");
-  expect(model.agents).toEqual([]);
-  expect(model.rules).toEqual([]);
-});
-
-it("replaces instructions when a user file exists", async () => {
-  // Given
-  await starter.put("instructions.md", "starter");
-  await repo.put("instructions.md", "user");
-  // When
-  const model = await discover(repo.root, {}, starter.root);
-  // Then
-  expect(model.instructions?.source).toBe("user");
 });
 
 it("retains excluded entities when disable lists win over enable lists", async () => {
@@ -224,20 +142,4 @@ it("enables opted-in assets when selection permits their harness", async () => {
     requires: { bin: "node" },
     harnesses: ["omo"],
   });
-});
-
-it("replaces harness files when user templates seeds and helpers shadow starter paths", async () => {
-  // Given
-  for (const root of [starter, repo]) {
-    await root.put("harnesses/omo/templates/config.json", "{}");
-    await root.put("harnesses/omo/seeds/ready", "1");
-    await root.put("bin/helper.sh", "exit 0");
-  }
-  // When
-  const model = await discover(repo.root, {}, starter.root);
-  // Then
-  expect(model.templates.omo?.files).toHaveLength(1);
-  expect(model.templates.omo?.files[0]?.file.startsWith(repo.root)).toBe(true);
-  expect(model.seeds[0]?.sourcePath.startsWith(repo.root)).toBe(true);
-  expect(model.bin[0]?.sourcePath.startsWith(repo.root)).toBe(true);
 });

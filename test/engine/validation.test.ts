@@ -61,7 +61,7 @@ it("reports a gated skill reference when it appears in an effective rule", async
   // Given: one harness with a disabled skill and a rule referencing it.
   await writeFile(
     join(sample.repo, "skillerie.yaml"),
-    "version: 1\nstarter: false\nharnesses:\n  opencode: {}\nskills:\n  disabled: [outline]\n",
+    "version: 1\nharnesses:\n  opencode: {}\nskills:\n  disabled: [outline]\n",
   );
   await writeFile(join(sample.repo, "instructions.md"), "# Instructions\n");
   await writeFile(

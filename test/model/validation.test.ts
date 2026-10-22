@@ -167,18 +167,6 @@ it("reports a source location when the repository does not exist", async () => {
   expect(result.diagnostics).toContainEqual(expect.objectContaining({ file: root, line: 1 }));
 });
 
-it("rejects a redirected starter root when starter content is enabled", async () => {
-  // Given
-  const link = join(repo.root, "starter-link");
-  await symlink(repo.root, link);
-  // When
-  const result = await discoverSources(repo.root, config(repo.root), link);
-  // Then
-  expect(result.diagnostics).toContainEqual(
-    expect.objectContaining({ file: link, code: "source.root" }),
-  );
-});
-
 it("rejects files when a canonical source directory is expected", async () => {
   // Given
   const file = await repo.put("skills", "payload");

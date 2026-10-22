@@ -1,5 +1,4 @@
 import { resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import { registry } from "../adapters/index.js";
 import { loadConfig } from "../config/index.js";
 import { lintModel } from "../lint/index.js";
@@ -28,9 +27,7 @@ export async function validateRepo(
     ...checkEngineVersion(config.engine, engineVersion, resolve(repoDir, "skillerie.yaml")),
   );
   if (hasErrors(diagnostics)) return { diagnostics };
-  const starterDir =
-    options.starterDir ?? fileURLToPath(new URL("../../starter/", import.meta.url));
-  const discovered = await discoverSources(repoDir, config, starterDir);
+  const discovered = await discoverSources(repoDir, config);
   diagnostics.push(...discovered.diagnostics);
   const source = discovered.model;
   if (!source || hasErrors(diagnostics)) return { diagnostics };

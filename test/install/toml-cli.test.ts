@@ -19,7 +19,7 @@ async function setup(original: string) {
   await writeFile(target, original);
   await writeFile(
     join(sample.repo, "skillerie.yaml"),
-    "version: 1\nstarter: false\nharnesses:\n  codex:\n    enabled: true\n",
+    "version: 1\nharnesses:\n  codex:\n    enabled: true\n",
   );
   const adapter = {
     ...fakeAdapter("codex"),

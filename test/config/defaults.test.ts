@@ -18,7 +18,6 @@ it("applies normalized defaults when the config contains only its version", asyn
     config: {
       version: 1,
       dialect: 1,
-      starter: { enabled: true, exclude: [] },
       harnesses: {},
       paths: {
         repo,
@@ -176,20 +175,3 @@ it("keeps disabled harnesses disabled when defaults are applied", async () => {
   // Then: opt-out is not replaced by the enabled default.
   expect(result.config?.harnesses.pi?.enabled).toBe(false);
 });
-
-it.each(["false", "{ exclude: [debug] }", "{ enabled: false, exclude: [debug] }"])(
-  "normalizes starter selection when authored as %s",
-  async (starter) => {
-    // Given: one of the supported starter selection forms.
-    const repo = await configRepo(`version: 1\nstarter: ${starter}\n`);
-
-    // When: configuration is loaded.
-    const result = await loadConfig(repo, env);
-
-    // Then: starter selection is represented without a boolean/object union.
-    expect(result.config?.starter).toEqual({
-      enabled: starter === "{ exclude: [debug] }",
-      exclude: starter === "false" ? [] : ["debug"],
-    });
-  },
-);

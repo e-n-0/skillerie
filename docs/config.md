@@ -55,7 +55,6 @@ Relative paths in `paths` and `harnesses.<harness>.path` are resolved against th
 | [`version`](#version) | integer, must be `1` | required |
 | [`dialect`](#dialect) | integer, must be `1` | `1` |
 | [`engine`](#engine) | semver range string | none |
-| [`starter`](#starter) | boolean or object | `true` |
 | [`harnesses`](#harnesses) | object | `{}` |
 | [`paths`](#paths) | object of strings | see below |
 | [`sources`](#sources) | object of source paths | conventional source paths |
@@ -90,26 +89,6 @@ engine: "^0.3"
 ```
 
 `init` doesn't set this key. It pins the version in `package.json` instead.
-
-### starter
-
-Controls the starter layer: generic skills, agents, and rules shipped in the package's `starter/` directory. Your own entities replace starter entities with the same name, whole entity at a time.
-
-<!-- prettier-ignore -->
-| Form | Meaning |
-|-|-|
-| `true` | Include the starter layer |
-| `false` | Exclude it |
-| `{ enabled: boolean, exclude: [names] }` | Include it, minus the named entries |
-
-`exclude` takes skill, agent, rule, and asset names. It also accepts `instructions` and `mcp` to drop the starter's `instructions.md` and `mcp.json`.
-
-```yaml
-starter:
-  exclude: [humanizer, java]
-```
-
-When enabled, the starter set bundled with the installed package is loaded before your own sources; an entity of yours with the same name replaces the starter one entirely.
 
 ### harnesses
 

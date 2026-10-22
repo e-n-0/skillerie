@@ -19,12 +19,6 @@ export interface ConfigInput {
   readonly version: 1;
   readonly dialect?: 1;
   readonly engine?: string;
-  readonly starter?:
-    | boolean
-    | {
-        readonly enabled?: boolean;
-        readonly exclude?: readonly string[];
-      };
   readonly harnesses?: HarnessMap<HarnessInput>;
   readonly paths?: Readonly<Record<string, string>>;
   readonly sources?: SourcePathInput;

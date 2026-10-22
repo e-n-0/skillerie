@@ -14,15 +14,6 @@ import type {
 import { authoredRule } from "./entities.js";
 import { harnessIds } from "./schema.js";
 
-export function replaceEntities<T extends Entity>(
-  starter: readonly T[],
-  user: readonly T[],
-): readonly T[] {
-  return [
-    ...new Map([...starter, ...user].map((entity) => [entity.name.toLowerCase(), entity])).values(),
-  ].sort((left, right) => (left.name < right.name ? -1 : left.name > right.name ? 1 : 0));
-}
-
 function overrides(settings: EntitySettings, name: string, harness?: HarnessId): EntityOverride {
   return {
     ...settings.overrides[name],

@@ -82,24 +82,6 @@ it("retains source bytes when files change after discovery", async () => {
   );
 });
 
-it("includes starter input hashes when a user entity replaces starter content", async () => {
-  // Given
-  const starter = await fixture();
-  try {
-    await starter.put("skills/example/SKILL.md", skill("example"));
-    await starter.put("skills/example/obsolete.txt", "abc");
-    await repo.put("skills/example/SKILL.md", skill("example"));
-    const model = await discover(repo.root, {}, starter.root);
-    // When
-    const snapshot = await buildSnapshot(config(repo.root), model, [], "1.0.0");
-    // Then
-    expect(snapshot.sourceHashes["starter/skills/example/obsolete.txt"]).toBeDefined();
-    expect(snapshot.sourceHashes["skills/example/SKILL.md"]).toBeDefined();
-  } finally {
-    await starter.cleanup();
-  }
-});
-
 it("omits junk hashes when source trees contain ignored files", async () => {
   // Given
   await repo.put("skills/example/SKILL.md", skill("example"));

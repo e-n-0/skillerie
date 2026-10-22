@@ -12,7 +12,7 @@
 - `src/cli.ts`: command entry point.
 - `test/`: synthetic fixtures and tests.
 - `docs/`: architecture and contributor documentation.
-- `schema/` and `starter/`: reserved package content for later implementation.
+- `schema/`: JSON Schema for `skillerie.yaml`.
 
 ## Commands
 

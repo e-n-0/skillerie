@@ -2,7 +2,7 @@ import { extname, join } from "node:path";
 import type {
   Asset,
   Diagnostic,
-  EntitySource,
+  Entity,
   HarnessMap,
   HarnessTemplates,
   Instructions,
@@ -28,8 +28,6 @@ export interface SourceLayer extends EntityInventory {
 
 export interface LayerInput {
   readonly root: string;
-  readonly source: Extract<EntitySource, "starter" | "user">;
-  readonly excluded: readonly string[];
   readonly sourcePaths: ResolvedSourcePaths;
 }
 
@@ -57,7 +55,7 @@ export async function readLayer(
   };
   const readSource = (name: SourcePathName) =>
     read(input.sourcePaths[name], name !== "instructions" && name !== "mcp");
-  const context = { source: input.source, excluded: input.excluded, diagnostics };
+  const context = { source: "user" as const, diagnostics };
   const skills = [...readSkills(await readSource("skills"), context)];
   const agents = [...readAgents(await readSource("agents"), context)];
   const rules = readRules(await readSource("rules"), context);
@@ -65,25 +63,25 @@ export async function readLayer(
   const instructionFile = instructionFiles.find(
     (file) => file.sourcePath === input.sourcePaths.instructions,
   );
-  const instructions =
-    instructionFile &&
-    !input.excluded.includes("instructions") &&
-    !input.excluded.includes("instructions.md")
-      ? {
-          file: instructionFile.sourcePath,
-          body: instructionFile.content.toString("utf8"),
-          source: input.source,
-        }
-      : undefined;
+  const instructions = instructionFile
+    ? {
+        file: instructionFile.sourcePath,
+        body: instructionFile.content.toString("utf8"),
+        source: context.source,
+      }
+    : undefined;
   const mcpFiles = await readSource("mcp");
   const mcpFile = mcpFiles.find((file) => file.sourcePath === input.sourcePaths.mcp);
-  const mcpResult =
-    mcpFile && !input.excluded.includes("mcp") && !input.excluded.includes("mcp.json")
-      ? readMcp(mcpFile.content.toString("utf8"), mcpFile.sourcePath)
-      : undefined;
+  const mcpResult = mcpFile
+    ? readMcp(mcpFile.content.toString("utf8"), mcpFile.sourcePath)
+    : undefined;
   diagnostics.push(...(mcpResult?.diagnostics ?? []));
   await read(join(input.root, "skillerie.yaml"), false);
-  const bin = (await readSource("bin")).filter((file) => !input.excluded.includes(file.relPath));
+  const bin = (await readSource("bin")).map((file) => ({
+    relPath: file.relPath,
+    sourcePath: file.sourcePath,
+    mode: file.mode,
+  }));
   const harnessFiles = await readSource("harnesses");
   const templates: Partial<Record<(typeof harnessIds)[number], HarnessTemplates>> = {};
   const assets: Asset[] = [];
@@ -96,27 +94,27 @@ export async function readLayer(
         .map((file) => ({ ...file, relPath: file.relPath.slice(`${harness}/${kind}/`.length) }));
     skills.push(...readSkills(subtree("skills"), scoped));
     agents.push(...readAgents(subtree("agents"), scoped));
-    const templateFiles = subtree("templates").filter(
-      (file) => !input.excluded.includes(file.relPath),
-    );
+    const templateFiles = subtree("templates");
     if (templateFiles.length)
       templates[harness] = {
         harness,
-        files: templateFiles.map((file) => {
-          const extension = extname(file.sourcePath).slice(1);
-          const format =
-            extension === "json" || extension === "jsonc" || extension === "toml"
-              ? extension
-              : "text";
-          return {
-            file: file.sourcePath,
-            relPath: file.relPath,
-            format,
-            content: file.content.toString("utf8"),
-          };
-        }),
+        files: templateFiles
+          .toSorted((a, b) => (a.relPath < b.relPath ? -1 : a.relPath > b.relPath ? 1 : 0))
+          .map((file) => {
+            const extension = extname(file.sourcePath).slice(1);
+            const format =
+              extension === "json" || extension === "jsonc" || extension === "toml"
+                ? extension
+                : "text";
+            return {
+              file: file.sourcePath,
+              relPath: file.relPath,
+              format,
+              content: file.content.toString("utf8"),
+            };
+          }),
       };
-    for (const file of subtree("seeds").filter((entry) => !input.excluded.includes(entry.relPath)))
+    for (const file of subtree("seeds"))
       seeds.push({
         harness,
         sourcePath: file.sourcePath,
@@ -135,14 +133,14 @@ export async function readLayer(
         .map((path) => relativePath(assetRoot, path).split("/")[0]),
     ]);
     for (const name of assetNames) {
-      if (!name || input.excluded.includes(name)) continue;
+      if (!name) continue;
       const sourcePath = join(input.sourcePaths.harnesses, harness, "assets", name);
       assets.push({
         name,
         file: sourcePath,
         sourcePath,
         relPath: name,
-        source: input.source,
+        source: context.source,
         harness,
         harnesses: [],
         kind: subtree("assets").some((file) => file.relPath === name) ? "file" : "directory",
@@ -168,10 +166,12 @@ export async function readLayer(
       seen.add(name);
     }
   }
+  const byName = (left: Entity, right: Entity) =>
+    left.name < right.name ? -1 : left.name > right.name ? 1 : 0;
   return {
-    skills,
-    agents,
-    rules,
+    skills: skills.toSorted(byName),
+    agents: agents.toSorted(byName),
+    rules: rules.toSorted(byName),
     templates,
     assets,
     seeds,

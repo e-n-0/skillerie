@@ -67,7 +67,7 @@ it("rejects a disabled harness when install selects it", async () => {
   // Given: a configured but disabled harness.
   await writeFile(
     join(sample.repo, "skillerie.yaml"),
-    "version: 1\nstarter: false\nharnesses:\n  opencode:\n    enabled: false\n",
+    "version: 1\nharnesses:\n  opencode:\n    enabled: false\n",
   );
   // When: install explicitly selects that harness.
   const result = await command([

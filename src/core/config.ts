@@ -1,12 +1,6 @@
 import type { AgentFrontmatter, SkillFrontmatter } from "./entities.js";
 import type { HarnessMap, JsonObject } from "./primitives.js";
 
-/** Normalized starter selection; user entities replace entire starter entities. */
-export interface StarterOptions {
-  readonly enabled: boolean;
-  readonly exclude: readonly string[];
-}
-
 /** Entity configuration fields applied before authored frontmatter. */
 export interface EntityOverride extends Partial<SkillFrontmatter>, Partial<AgentFrontmatter> {
   readonly enabled?: boolean;
@@ -66,7 +60,6 @@ export interface PostInstallHook {
 export interface ResolvedConfig {
   readonly version: 1;
   readonly dialect: 1;
-  readonly starter: StarterOptions;
   readonly harnesses: HarnessMap<ResolvedHarnessConfig>;
   readonly paths: ResolvedPaths;
   readonly skills: EntitySettings;

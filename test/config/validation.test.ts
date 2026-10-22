@@ -183,7 +183,7 @@ it("returns a read diagnostic when the configuration file is missing", async () 
 
 it("returns a YAML diagnostic when the document is malformed", async () => {
   // Given: an unclosed flow sequence.
-  const repo = await configRepo("version: 1\nstarter: [\n");
+  const repo = await configRepo("version: 1\nskills: [\n");
 
   // When: configuration is loaded.
   const result = await loadConfig(repo, env);

@@ -186,8 +186,8 @@ it("limits scoped sources when only one harness owns them", async () => {
 
 it("sorts inventory when files were authored in another order", async () => {
   // Given
-  await repo.put("skills/zulu/SKILL.md", skill("zulu"));
-  await repo.put("skills/alpha/SKILL.md", skill("alpha"));
+  await repo.put("skills/group/zulu/SKILL.md", skill("zulu"));
+  await repo.put("harnesses/codex/skills/alpha/SKILL.md", skill("alpha"));
   // When
   const model = await discover(repo.root);
   // Then

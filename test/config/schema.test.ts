@@ -2,6 +2,24 @@ import { expect, it } from "vitest";
 import { loadConfig } from "../../src/config/index.js";
 import { configRepo, env } from "./fixture.js";
 
+it("rejects the removed starter key when loading configuration", async () => {
+  // Given: configuration still using the removed key.
+  const repo = await configRepo("version: 1\nstarter: true\n");
+
+  // When: configuration is loaded.
+  const result = await loadConfig(repo, env);
+
+  // Then: the normal unknown-key diagnostic points at the rejected key.
+  expect(result.config).toBeUndefined();
+  expect(result.diagnostics).toContainEqual(
+    expect.objectContaining({
+      severity: "error",
+      code: "config.schema",
+      jsonPath: "/starter",
+    }),
+  );
+});
+
 it("accepts all authoring fields when a complete version one config is loaded", async () => {
   // Given: neutral content exercising every declared schema shape.
   const override = {
@@ -43,7 +61,6 @@ it("accepts all authoring fields when a complete version one config is loaded", 
     version: 1,
     dialect: 1,
     engine: "^1.2.0",
-    starter: { enabled: true, exclude: ["debug"] },
     harnesses: {
       opencode: {
         enabled: true,
@@ -122,7 +139,6 @@ it.each(["skills", "agents", "rules", "assets"] as const)(
 
 it.each([
   ["engine: 1", "/engine"],
-  ["starter: { exclude: [debug, debug] }", "/starter/exclude"],
   ["generated: { commit: yes }", "/generated/commit"],
   ["hooks: { postInstall: [{ fatal: false }] }", "/hooks/postInstall/0/command"],
   ["lint: { references: { severity: unknown } }", "/lint/references/severity"],

@@ -1,4 +1,3 @@
 version: 1
-starter: false
 harnesses:
   opencode: {}

@@ -39,7 +39,6 @@ export interface EntityInventory {
 export interface EntityInput {
   readonly source: EntitySource;
   readonly harness?: HarnessId;
-  readonly excluded: readonly string[];
   readonly diagnostics: Diagnostic[];
 }
 
@@ -89,7 +88,6 @@ export function readSkills(files: readonly SourceFile[], input: EntityInput): re
   for (const file of files.filter((entry) => basename(entry.sourcePath) === "SKILL.md")) {
     const dir = dirname(file.sourcePath);
     const name = basename(dir);
-    if (input.excluded.includes(name)) continue;
     const parsed = parseFrontmatter(file.content.toString("utf8"), file.sourcePath);
     input.diagnostics.push(...parsed.diagnostics);
     if (!parsed.frontmatter) {
@@ -143,7 +141,6 @@ export function readAgents(files: readonly SourceFile[], input: EntityInput): re
   const agents: Agent[] = [];
   for (const file of files.filter((entry) => extname(entry.sourcePath) === ".md")) {
     const name = basename(file.sourcePath, ".md");
-    if (input.excluded.includes(name)) continue;
     const parsed = parseFrontmatter(file.content.toString("utf8"), file.sourcePath);
     input.diagnostics.push(...parsed.diagnostics);
     if (!parsed.frontmatter) {
@@ -182,7 +179,6 @@ export function readRules(files: readonly SourceFile[], input: EntityInput): rea
     (entry) => !entry.relPath.includes("/") && extname(entry.sourcePath) === ".md",
   )) {
     const name = basename(file.sourcePath, ".md");
-    if (input.excluded.includes(name)) continue;
     const parsed = parseFrontmatter(file.content.toString("utf8"), file.sourcePath);
     input.diagnostics.push(...parsed.diagnostics);
     if (parsed.diagnostics.length) continue;

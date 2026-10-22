@@ -12,7 +12,6 @@ import type { Generation, TreeDifference } from "../fs/index.js";
 export interface EngineOptions {
   readonly env?: Environment;
   readonly adapters?: ReadonlyMap<HarnessId, AdapterLoader>;
-  readonly starterDir?: string;
   readonly engineVersion?: string;
   readonly os?: "darwin" | "linux";
 }

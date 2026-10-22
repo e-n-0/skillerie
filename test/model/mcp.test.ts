@@ -61,39 +61,6 @@ it("keeps other harness servers when one harness deletes a server", async () => 
   expect(servers).toEqual({ docs: { command: "node" } });
 });
 
-it("replaces starter MCP servers when user server names overlap", async () => {
-  // Given
-  const starter = await fixture();
-  try {
-    await starter.put(
-      "mcp.json",
-      JSON.stringify({
-        mcpServers: { docs: { command: "node", args: ["old"] }, tracker: { command: "git" } },
-        settings: { base: true },
-        harnessOverrides: { codex: { tracker: null } },
-      }),
-    );
-    await repo.put(
-      "mcp.json",
-      JSON.stringify({
-        mcpServers: { docs: { url: "https://example.com/mcp" } },
-        settings: { extra: true },
-      }),
-    );
-    // When
-    const model = await discover(repo.root, {}, starter.root);
-    // Then
-    expect(model.mcp?.mcpServers).toEqual({
-      docs: { url: "https://example.com/mcp" },
-      tracker: { command: "git" },
-    });
-    expect(model.mcp?.settings).toEqual({ base: true, extra: true });
-    expect(model.mcp?.harnessOverrides.codex).toEqual({ tracker: null });
-  } finally {
-    await starter.cleanup();
-  }
-});
-
 it("reports RFC 6901 paths when a server field is invalid", async () => {
   // Given
   const file = await repo.put(

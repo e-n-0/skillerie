@@ -55,7 +55,6 @@ const DEFAULT_LINT = {
 export const DEFAULT_CONFIG = {
   version: 1,
   dialect: 1,
-  starter: { enabled: true, exclude: [] },
   harnesses: HARNESS_CONFIG,
   paths: {
     repo: "/home/alice/project",

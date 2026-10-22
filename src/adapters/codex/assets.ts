@@ -10,7 +10,7 @@ export interface AssetFile {
 export function assetFiles(ctx: ResolvedContext): readonly AssetFile[] {
   const result: AssetFile[] = [];
   for (const asset of ctx.model.harnesses.codex?.assets ?? []) {
-    const prefix = `${asset.source === "starter" ? "starter/" : ""}harnesses/codex/assets/${asset.relPath}`;
+    const prefix = `harnesses/codex/assets/${asset.relPath}`;
     const files =
       asset.kind === "file"
         ? [{ sourcePath: asset.sourcePath, relPath: asset.relPath }]

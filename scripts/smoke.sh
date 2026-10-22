@@ -25,10 +25,6 @@ entries="$(tar -tzf "$tarball")"
 for required in \
   dist/cli.js \
   schema/skillerie.schema.json \
-  starter/skills/debug/SKILL.md \
-  starter/skills/gh-fix-ci/LICENSE.txt \
-  starter/skills/humanizer/LICENSE \
-  starter/skills/security-best-practices/LICENSE.txt \
   LICENSE NOTICE README.md; do
   if ! grep -Fxq "package/$required" <<< "$entries"; then
     printf 'Missing package file: %s\n' "$required" >&2

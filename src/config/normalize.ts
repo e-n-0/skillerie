@@ -47,15 +47,10 @@ export function normalizeConfig(
       replaceAgents: value.replaceAgents ?? {},
     };
   }
-  const starter = input.starter;
   const config: LoadedConfig = {
     version: 1,
     dialect: 1,
     ...(input.engine === undefined ? {} : { engine: input.engine }),
-    starter: {
-      enabled: typeof starter === "boolean" ? starter : (starter?.enabled ?? true),
-      exclude: typeof starter === "boolean" ? [] : (starter?.exclude ?? []),
-    },
     harnesses,
     paths,
     sources: resolution.sources,

@@ -20,7 +20,6 @@ const emptySelection = { enabled: [], disabled: [], overrides: {}, harnesses: {}
 const config = {
   version: 1,
   dialect: 1,
-  starter: { enabled: true, exclude: [] },
   harnesses: {},
   paths: {
     repo: "/home/alice/config",

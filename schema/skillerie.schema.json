@@ -9,20 +9,6 @@
     "version": { "type": "integer", "const": 1 },
     "dialect": { "type": "integer", "const": 1, "default": 1 },
     "engine": { "type": "string", "minLength": 1 },
-    "starter": {
-      "default": true,
-      "oneOf": [
-        { "type": "boolean" },
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "enabled": { "type": "boolean", "default": true },
-            "exclude": { "$ref": "#/$defs/names" }
-          }
-        }
-      ]
-    },
     "harnesses": {
       "type": "object",
       "additionalProperties": false,

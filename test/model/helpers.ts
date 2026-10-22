@@ -26,7 +26,6 @@ export function config(root: string, values: Partial<ResolvedConfig> = {}): Reso
   return {
     version: 1,
     dialect: 1,
-    starter: { enabled: true, exclude: [] },
     harnesses: {
       opencode: {
         enabled: true,
@@ -77,12 +76,8 @@ export function agent(name: string, fields = ""): string {
   return `---\nname: ${name}\ndescription: example\n${fields}---\npayload\n`;
 }
 
-export async function discover(
-  root: string,
-  values: Partial<ResolvedConfig> = {},
-  starter?: string,
-) {
-  const result = await discoverSources(root, config(root, values), starter);
+export async function discover(root: string, values: Partial<ResolvedConfig> = {}) {
+  const result = await discoverSources(root, config(root, values));
   if (!result.model) throw new Error(JSON.stringify(result.diagnostics));
   return result.model;
 }

@@ -38,7 +38,6 @@ npm run build
 | `src/adapters/` | One directory per harness |
 | `src/doctor/`, `src/init/` | The `doctor` and `init` commands |
 | `schema/` | JSON Schema for `skillerie.yaml` |
-| `starter/` | Generic starter skills, agents, and rules |
 | `test/` | Tests, synthetic fixtures, and golden output |
 
 Read [docs/architecture.md](docs/architecture.md) before changing the engine contract, and [docs/adapters.md](docs/adapters.md) before adding a harness.

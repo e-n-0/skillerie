@@ -1,7 +1,7 @@
 import type { HarnessId, HarnessMap, JsonObject, Requires } from "./primitives.js";
 
-/** Origin of an entity after whole-entity replacement by name. */
-export type EntitySource = "starter" | "user" | "harness-scoped";
+/** Origin of an entity in the user's repository. */
+export type EntitySource = "user" | "harness-scoped";
 
 /** Common source provenance and applicability after configuration is applied. */
 export interface Entity {

@@ -50,7 +50,7 @@ it("creates a loadable scaffold when the destination does not exist", async () =
   expect(result.code, result.stderr).toBe(0);
   const loaded = await loadConfig(repo, env);
   expect(loaded.diagnostics).toEqual([]);
-  expect(loaded.config).toMatchObject({ version: 1, starter: { enabled: true } });
+  expect(loaded.config).toMatchObject({ version: 1 });
   expect((await readdir(repo)).sort()).toEqual([
     ".gitignore",
     "agents",
@@ -67,7 +67,6 @@ it("creates a loadable scaffold when the destination does not exist", async () =
   );
   const document = parseDocument(yaml, { version: "1.2", uniqueKeys: true });
   expect(document.errors).toEqual([]);
-  expect(document.get("starter")).toBe(true);
   expect(document.has("paths")).toBe(false);
   expect(JSON.parse(await readFile(join(repo, "package.json"), "utf8"))).toEqual({
     private: true,
@@ -141,7 +140,7 @@ it("replaces detection when repeated and variadic harness flags are provided", a
 
 it("lists every conflicting file without writes when destinations already exist", async () => {
   // Given: multiple existing scaffold destinations and unrelated content.
-  await writeFile(join(repo, "skillerie.yaml"), "version: 1\nstarter: false\n");
+  await writeFile(join(repo, "skillerie.yaml"), "version: 1\n");
   await writeFile(join(repo, "package.json"), '{"private":true}\n');
   await writeFile(join(repo, "notes.md"), "# Notes\n");
   // When: onboarding runs without force.
@@ -151,7 +150,7 @@ it("lists every conflicting file without writes when destinations already exist"
   expect(result.stderr).toContain("skillerie.yaml");
   expect(result.stderr).toContain("package.json");
   expect((await readdir(repo)).sort()).toEqual(["notes.md", "package.json", "skillerie.yaml"]);
-  expect(await readFile(join(repo, "skillerie.yaml"), "utf8")).toBe("version: 1\nstarter: false\n");
+  expect(await readFile(join(repo, "skillerie.yaml"), "utf8")).toBe("version: 1\n");
   expect(await readFile(join(repo, "package.json"), "utf8")).toBe('{"private":true}\n');
 });
 
