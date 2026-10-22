@@ -89,7 +89,7 @@ it("accepts all authoring fields when a complete version one config is loaded", 
     },
     generated: { commit: false },
     hooks: {
-      postInstall: ["node bin/setup.js", { command: "node bin/check.js", fatal: false }],
+      postInstall: ["node bin/setup.js", "node bin/check.js"],
     },
   };
   const repo = await configRepo(JSON.stringify(input));
@@ -108,10 +108,7 @@ it("accepts all authoring fields when a complete version one config is loaded", 
     shared: input.shared,
     lint: input.lint,
     hooks: {
-      postInstall: [
-        { command: "node bin/setup.js", fatal: true },
-        { command: "node bin/check.js", fatal: false },
-      ],
+      postInstall: [{ command: "node bin/setup.js" }, { command: "node bin/check.js" }],
     },
   });
 });
@@ -140,7 +137,7 @@ it.each(["skills", "agents", "rules", "assets"] as const)(
 it.each([
   ["engine: 1", "/engine"],
   ["generated: { commit: yes }", "/generated/commit"],
-  ["hooks: { postInstall: [{ fatal: false }] }", "/hooks/postInstall/0/command"],
+  ["hooks: { postInstall: [{ command: x }] }", "/hooks/postInstall/0"],
   ["lint: { references: { severity: unknown } }", "/lint/references/severity"],
   ["agents: { overrides: { reader: { maxTurns: 0 } } }", "/agents/overrides/reader/maxTurns"],
   [

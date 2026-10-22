@@ -25,7 +25,7 @@ afterEach(async () => {
   await sample.cleanup();
 });
 
-function adapterRegistry(root: string, doctor?: Adapter["doctor"]) {
+function adapterRegistry(root: string, doctor?: Adapter["doctor"], check?: Adapter["check"]) {
   return new Map(
     HARNESS_IDS.map((id) => {
       const home = join(root, id);
@@ -40,6 +40,7 @@ function adapterRegistry(root: string, doctor?: Adapter["doctor"]) {
           assetsDir: join(home, "assets"),
         }),
         ...(doctor ? { doctor } : {}),
+        ...(check ? { check } : {}),
       };
       return [id, async () => ({ adapter })] as const;
     }),
@@ -192,4 +193,27 @@ it("includes diagnostics from enabled adapter doctor hooks", async () => {
   expect(diagnostics.filter((item) => item.code.endsWith(".doctor"))).toHaveLength(
     HARNESS_IDS.length,
   );
+});
+
+it("runs adapter config checks only for harnesses whose CLI is installed", async () => {
+  // Given: adapters with a headless config check, and only the codex CLI on PATH.
+  const check: NonNullable<Adapter["check"]> = async (context) => [
+    {
+      severity: "info",
+      code: `adapter.${context.harness}.check`,
+      message: `Checked with ${context.harnessVersion.executable ?? "nothing"}.`,
+    } satisfies Diagnostic,
+  ];
+  const options = doctorOptions(async (name) => (name === "codex" ? "/virtual/codex" : undefined));
+  const adapters = adapterRegistry(sample.root, undefined, check);
+  // When: environment diagnostics run.
+  const diagnostics = await runDoctor({ ...options, adapters });
+  // Then: only the installed harness is checked, using the probed executable.
+  const checks = diagnostics.filter((item) => item.code.endsWith(".check"));
+  expect(checks).toEqual([
+    expect.objectContaining({
+      code: "adapter.codex.check",
+      message: "Checked with /virtual/codex.",
+    }),
+  ]);
 });

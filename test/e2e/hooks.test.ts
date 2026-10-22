@@ -29,12 +29,11 @@ it("passes install context when a post-install hook runs", async () => {
 }, 30_000);
 
 it("reports a warning when a post-install hook fails", async () => {
-  // Given: a failing hook, including a legacy fatal setting.
+  // Given: a failing hook.
   const config = join(suite.sandbox.repo, "skillerie.yaml");
   await writeFile(
     config,
-    (await readFile(config, "utf8")) +
-      '\nhooks:\n  postInstall:\n    - command: "exit 7"\n      fatal: true\n',
+    (await readFile(config, "utf8")) + '\nhooks:\n  postInstall:\n    - "exit 7"\n',
   );
   // When: installation completes but the hook exits nonzero.
   const result = await suite.run(["install", "--json"]);

@@ -73,11 +73,7 @@ export function normalizeConfig(
     },
     generated: { commit: input.generated?.commit ?? false },
     hooks: {
-      postInstall: (input.hooks?.postInstall ?? []).map((hook) =>
-        typeof hook === "string"
-          ? { command: hook, fatal: true }
-          : { command: hook.command, fatal: hook.fatal ?? true },
-      ),
+      postInstall: (input.hooks?.postInstall ?? []).map((command) => ({ command })),
     },
   };
   return config;

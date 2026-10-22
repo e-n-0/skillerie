@@ -133,7 +133,8 @@ export async function checkHarnesses(context: DoctorContext): Promise<readonly D
       });
     }
 
-    if (adapter.doctor) {
+    const runCheck = adapter.check && executable !== undefined;
+    if (adapter.doctor || runCheck) {
       const adapterContext: ResolvedContext = {
         snapshot: context.snapshot,
         model: context.model,
@@ -146,7 +147,8 @@ export async function checkHarnesses(context: DoctorContext): Promise<readonly D
         },
         env: context.env,
       };
-      diagnostics.push(...(await adapter.doctor(adapterContext)));
+      if (adapter.doctor) diagnostics.push(...(await adapter.doctor(adapterContext)));
+      if (runCheck && adapter.check) diagnostics.push(...(await adapter.check(adapterContext)));
     }
   }
   return diagnostics;

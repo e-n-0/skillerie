@@ -120,7 +120,7 @@ All paths must be absolute. Targets can't overlap, except that several merge act
 
 ### check(ctx) and doctor(ctx)
 
-Both are optional and must not change any installation. `doctor` is called by `skillerie doctor` for each enabled harness, with `ctx.harnessVersion` filled in from the probe. The built-in adapters implement `check` for headless config validation through the harness CLI, but this version of the CLI doesn't call `check`.
+Both are optional and must not change any installation. `skillerie doctor` calls both for each enabled harness, with `ctx.harnessVersion` filled in from the probe. `check` validates the rendered configuration headlessly through the harness CLI and runs only when that CLI is on `PATH`; `doctor` reports any other environment findings.
 
 ## Shared dialect helpers
 

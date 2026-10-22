@@ -53,7 +53,6 @@ export interface LintSettings {
 /** A shell command run only by the engine after a successful install. */
 export interface PostInstallHook {
   readonly command: string;
-  readonly fatal: boolean;
 }
 
 /** Validated/defaulted version-1 configuration, not the raw YAML document. */

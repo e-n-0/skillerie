@@ -37,9 +37,7 @@ export interface ConfigInput {
   };
   readonly generated?: { readonly commit?: boolean };
   readonly hooks?: {
-    readonly postInstall?: readonly (
-      string | { readonly command: string; readonly fatal?: boolean }
-    )[];
+    readonly postInstall?: readonly string[];
   };
 }
 

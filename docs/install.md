@@ -78,7 +78,7 @@ Reads each configured harness's manifest and undoes the install. It doesn't rend
 skillerie doctor
 ```
 
-Reports, for each enabled harness: whether its CLI is on `PATH`, its version against the adapter's supported range, and whether its home and agent directory are writable. It also checks the Node version, every binary named in a `requires.bin`, and skills in `~/.agents/skills` that shadow managed skills. A missing harness CLI is informational. Exit status is 1 only for errors, such as an unwritable home.
+Reports, for each enabled harness: whether its CLI is on `PATH`, its version against the adapter's supported range, whether its home and agent directory are writable, and, when the CLI is installed, whether the harness accepts the rendered configuration (a headless check through the harness CLI that writes nothing to your homes). It also checks the Node version, every binary named in a `requires.bin`, and skills in `~/.agents/skills` that shadow managed skills. A missing harness CLI is informational. Exit status is 1 only for errors, such as an unwritable home.
 
 ### init
 

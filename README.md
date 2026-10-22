@@ -47,7 +47,7 @@ npx skillerie install
 | `skillerie install` | Render, activate the generation, and install it; `--check` is a dry run |
 | `skillerie status` | Report ownership of each harness home and any drift |
 | `skillerie uninstall` | Remove managed links and restore merged files |
-| `skillerie doctor` | Check Node, harness CLIs and versions, required binaries, and writable homes |
+| `skillerie doctor` | Check Node, harness CLIs and versions, rendered configs, required binaries, and writable homes |
 
 Every command accepts `--repo <dir>` (default: the current directory) and the global `--json` flag. See [docs/install.md](docs/install.md) for flags and exit codes.
 

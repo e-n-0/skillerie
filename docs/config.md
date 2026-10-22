@@ -283,16 +283,16 @@ With `commit: true`, generations are written to `generated/` inside the reposito
 |-|-|-|
 | `postInstall` | list of commands | `[]` |
 
-Each entry is either a command string or `{ command: string, fatal: boolean }`. After a successful `install`, skillerie runs each command through the shell, in order, from the repository directory. The environment includes `SKILLERIE_REPO` (the repository path) and `SKILLERIE_HARNESSES` (comma-separated harnesses that were installed). Output is discarded.
+Each entry is a shell command string. After a successful `install`, skillerie runs each command through the shell, in order, from the repository directory. The environment includes `SKILLERIE_REPO` (the repository path) and `SKILLERIE_HARNESSES` (comma-separated harnesses that were installed). Output is discarded.
 
 ```yaml
 hooks:
   postInstall:
     - ./bin/refresh-index.sh
-    - { command: "make -C ~/tools sync", fatal: false }
+    - make -C ~/tools sync
 ```
 
-Hooks don't run during `install --check`, or when any managed file was preserved as a user edit. A failing hook is reported as a warning. `fatal` is accepted and defaults to `true`, but this version reports every hook failure as a warning either way.
+Hooks don't run during `install --check`, or when any managed file was preserved as a user edit. A failing hook is reported as a warning and doesn't change the result of the install.
 
 ## mcp.json
 

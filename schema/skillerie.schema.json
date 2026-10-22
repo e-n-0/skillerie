@@ -97,20 +97,7 @@
         "postInstall": {
           "type": "array",
           "default": [],
-          "items": {
-            "oneOf": [
-              { "type": "string", "minLength": 1 },
-              {
-                "type": "object",
-                "additionalProperties": false,
-                "required": ["command"],
-                "properties": {
-                  "command": { "type": "string", "minLength": 1 },
-                  "fatal": { "type": "boolean", "default": true }
-                }
-              }
-            ]
-          }
+          "items": { "type": "string", "minLength": 1 }
         }
       }
     }
