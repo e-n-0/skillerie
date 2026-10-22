@@ -19,6 +19,6 @@
     "outDir": "dist",
     "types": ["node"]
   },
-  "include": ["src/**/*.ts", "test/**/*.ts", "scripts/**/*.ts", "vitest.config.ts"],
+  "include": ["src/**/*.ts", "test/**/*.ts", ".github/scripts/*.ts", "vitest.config.ts"],
   "exclude": ["node_modules", "dist", "coverage"]
 }

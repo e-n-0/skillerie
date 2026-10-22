@@ -4,9 +4,9 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { nextPatch, parseNote, prependChangelog, renderNotes } from "../../scripts/changes.js";
+import { nextPatch, parseNote, prependChangelog, renderNotes } from "./changes.js";
 
-const SCRIPT = path.resolve("scripts/changes.ts");
+const SCRIPT = path.resolve(".github/scripts/changes.ts");
 
 describe("parseNote", () => {
   it("reads the PR number from the file name", () => {
