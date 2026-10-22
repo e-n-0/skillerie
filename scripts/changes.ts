@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { parse } from "yaml";
 
@@ -54,6 +54,18 @@ export function renderNotes(notes: readonly Note[]): string {
   return `${sections.join("\n\n")}\n`;
 }
 
+export function prependChangelog(
+  existing: string,
+  version: string,
+  date: string,
+  notes: string,
+): string {
+  const header = "# Changelog\n";
+  const rest = existing.startsWith(header) ? existing.slice(header.length).trimStart() : existing;
+  const section = `## ${version} - ${date}\n\n${notes}`;
+  return `${header}\n${section}${rest === "" ? "" : `\n${rest}`}`;
+}
+
 function git(...args: string[]): string {
   return execFileSync("git", args, { encoding: "utf8" }).trim();
 }
@@ -71,7 +83,7 @@ function check(pr: string): void {
   console.log(`ok .changes/${note.pr}.yaml (${note.type})`);
 }
 
-function release(notesFile: string): void {
+function release(notesFile: string, changelogFile: string): void {
   const latest = git("tag", "--list", "v*.*.*", "--sort=-v:refname").split("\n")[0] ?? "";
   if (latest === "") {
     console.error("no vX.Y.Z tag yet; publish the first release manually");
@@ -88,14 +100,25 @@ function release(notesFile: string): void {
     console.log("version=");
     return;
   }
-  writeFileSync(notesFile, renderNotes(notes));
-  console.log(`version=${nextPatch(latest)}`);
+  const version = nextPatch(latest);
+  const rendered = renderNotes(notes);
+  const existing = existsSync(changelogFile) ? readFileSync(changelogFile, "utf8") : "";
+  const date = new Date().toISOString().slice(0, 10);
+  writeFileSync(notesFile, rendered);
+  writeFileSync(changelogFile, prependChangelog(existing, version, date, rendered));
+  console.log(`version=${version}`);
 }
 
-function main([command, flag, value]: readonly string[]): void {
-  if (command === "check" && flag === "--pr" && value) return check(value);
-  if (command === "release" && flag === "--notes" && value) return release(value);
-  throw new Error("usage: changes.ts check --pr <number> | release --notes <file>");
+function main([command, ...args]: readonly string[]): void {
+  const option = (name: string) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
+  const pr = option("--pr");
+  const notes = option("--notes");
+  const changelog = option("--changelog");
+  if (command === "check" && pr) return check(pr);
+  if (command === "release" && notes && changelog) return release(notes, changelog);
+  throw new Error(
+    "usage: changes.ts check --pr <number> | release --notes <file> --changelog <file>",
+  );
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

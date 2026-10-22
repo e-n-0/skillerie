@@ -58,17 +58,20 @@ jobs:
       - run: npm install -g npm@latest
       - run: npm ci
       - id: plan
-        run: npm run -s changes -- release --notes "$RUNNER_TEMP/notes.md" >> "$GITHUB_OUTPUT"
-      - if: steps.plan.outputs.version != ''
-        run: npm version "$VERSION" --no-git-tag-version
-        env:
-          VERSION: ${{ steps.plan.outputs.version }}
-      - if: steps.plan.outputs.version != ''
-        run: npm run build
-      - if: steps.plan.outputs.version != ''
-        run: npm publish --access public
-      - if: steps.plan.outputs.version != ''
-        run: gh release create "v$VERSION" --target "$GITHUB_SHA" --title "v$VERSION" --notes-file "$RUNNER_TEMP/notes.md"
+        run: npm run -s changes -- release --notes "$RUNNER_TEMP/notes.md" --changelog CHANGELOG.md >> "$GITHUB_OUTPUT"
+      - name: Publish, commit changelog, tag
+        if: steps.plan.outputs.version != ''
         env:
           VERSION: ${{ steps.plan.outputs.version }}
           GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore(release): v$VERSION" CHANGELOG.md
+          npm version "$VERSION" --no-git-tag-version
+          npm run build
+          npm publish --access public
+          git checkout -- package.json package-lock.json
+          git pull --rebase origin main
+          git push origin HEAD:main
+          gh release create "v$VERSION" --target "$(git rev-parse HEAD)" --title "v$VERSION" --notes-file "$RUNNER_TEMP/notes.md"

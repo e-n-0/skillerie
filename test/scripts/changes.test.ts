@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { nextPatch, parseNote, renderNotes } from "../../scripts/changes.js";
+import { nextPatch, parseNote, prependChangelog, renderNotes } from "../../scripts/changes.js";
 
 const SCRIPT = path.resolve("scripts/changes.ts");
 
@@ -39,6 +39,15 @@ it("groups notes by type and orders them by PR number", () => {
   ]);
   expect(rendered).toBe(
     "### Features\n\n- New thing (#3)\n\n### Fixes\n\n- First fix (#4)\n- Second fix (#9)\n",
+  );
+});
+
+it("prepends the new release under the changelog header", () => {
+  const first = prependChangelog("", "0.0.2", "2026-01-02", "### Fixes\n\n- A (#1)\n");
+  expect(first).toBe("# Changelog\n\n## 0.0.2 - 2026-01-02\n\n### Fixes\n\n- A (#1)\n");
+  expect(prependChangelog(first, "0.0.3", "2026-01-03", "### Features\n\n- B (#2)\n")).toBe(
+    "# Changelog\n\n## 0.0.3 - 2026-01-03\n\n### Features\n\n- B (#2)\n\n" +
+      "## 0.0.2 - 2026-01-02\n\n### Fixes\n\n- A (#1)\n",
   );
 });
 
@@ -82,10 +91,12 @@ describe("changes.ts in a git repository", () => {
     commit(".changes/README.md", "How to write notes.\n");
   };
 
+  const release = () => run("release", "--notes", "notes.md", "--changelog", "CHANGELOG.md");
+
   it("skips the release when there is no version tag yet", () => {
     setup();
     commit(".changes/1.yaml", "type: feat\ndescription: Something new\n");
-    const result = run("release", "--notes", "notes.md");
+    const result = release();
     expect(result.status).toBe(0);
     expect(result.stdout).toBe("version=\n");
     expect(result.stderr).toMatch(/no vX\.Y\.Z tag/);
@@ -95,7 +106,7 @@ describe("changes.ts in a git repository", () => {
     setup();
     git("tag", "v0.0.1");
     commit("other.txt", "x\n");
-    const result = run("release", "--notes", "notes.md");
+    const result = release();
     expect(result.status).toBe(0);
     expect(result.stdout).toBe("version=\n");
   });
@@ -104,20 +115,24 @@ describe("changes.ts in a git repository", () => {
     setup();
     commit(".changes/1.yaml", "type: fix\ndescription: Shipped in 0.0.1\n");
     git("tag", "v0.0.1");
+    commit("CHANGELOG.md", "# Changelog\n\n## 0.0.1 - 2026-01-01\n\n- Initial release\n");
     commit(".changes/2.yaml", "type: feat\ndescription: Feature for 0.0.2\n");
-    const result = run("release", "--notes", "notes.md");
+    const result = release();
     expect(result.status).toBe(0);
     expect(result.stdout).toBe("version=0.0.2\n");
     expect(readFileSync(path.join(repo, "notes.md"), "utf8")).toBe(
       "### Features\n\n- Feature for 0.0.2 (#2)\n",
     );
+    const changelog = readFileSync(path.join(repo, "CHANGELOG.md"), "utf8");
+    expect(changelog).toMatch(/^# Changelog\n\n## 0\.0\.2 - \d{4}-\d{2}-\d{2}\n\n### Features\n/);
+    expect(changelog).toContain("- Feature for 0.0.2 (#2)\n\n## 0.0.1 - 2026-01-01");
   });
 
   it("fails on a malformed note", () => {
     setup();
     git("tag", "v0.0.1");
     commit(".changes/5.yaml", "type: misc\ndescription: Wrong type\n");
-    const result = run("release", "--notes", "notes.md");
+    const result = release();
     expect(result.status).toBe(1);
     expect(result.stderr).toMatch(/\.changes\/5\.yaml: type must be/);
   });
