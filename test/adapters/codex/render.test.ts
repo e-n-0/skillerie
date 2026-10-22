@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse } from "smol-toml";
 import { beforeAll, expect, it } from "vitest";
@@ -185,7 +185,8 @@ it("passes through execpolicy assets when their names are captured in the snapsh
     snapshot: {
       ...ctx.snapshot,
       sourceHashes: {
-        "harnesses/codex/assets/rules/safe.rules": "sha256:fixture",
+        [`${relative(ctx.model.repoDir, sourcePath).split("\\").join("/")}/safe.rules`]:
+          "sha256:fixture",
       },
     },
     model: {

@@ -42,15 +42,14 @@ export function renderConfig(ctx: ResolvedContext): {
   const template = ctx.model.templates.opencode?.files.find(
     (entry) => entry.relPath === "opencode.jsonc",
   );
-  const source =
-    template?.file ?? join(ctx.model.repoDir, "harnesses/opencode/templates/opencode.jsonc");
+  const source = template === undefined ? {} : { file: template.file };
   const errors: ParseError[] = [];
   const parsed: unknown = parse(template?.content ?? "{}", errors, { allowTrailingComma: true });
   const diagnostics: Diagnostic[] = errors.map((error) => ({
     severity: "error",
     code: "opencode.jsonc",
     message: printParseErrorCode(error.error),
-    file: source,
+    ...source,
     line: (template?.content ?? "").slice(0, error.offset).split("\n").length,
   }));
   if (!isJsonObject(parsed)) {
@@ -58,7 +57,7 @@ export function renderConfig(ctx: ResolvedContext): {
       severity: "error",
       code: "opencode.config",
       message: "The OpenCode template must be an object.",
-      file: source,
+      ...source,
     });
     return { diagnostics };
   }
@@ -69,7 +68,7 @@ export function renderConfig(ctx: ResolvedContext): {
         severity: "error" as const,
         code: "opencode.schema",
         message: error.message ?? "Invalid OpenCode setting.",
-        file: source,
+        ...source,
         jsonPath: error.instancePath,
       })),
     );
@@ -86,7 +85,7 @@ export function renderConfig(ctx: ResolvedContext): {
           severity: "error",
           code: "opencode.mcpCollision",
           message: `MCP server ${name} is also declared in the template.`,
-          file: source,
+          ...source,
           jsonPath: `/mcp/${name.replaceAll("~", "~0").replaceAll("/", "~1")}`,
         });
         continue;
@@ -129,7 +128,7 @@ export function renderConfig(ctx: ResolvedContext): {
         severity: "error" as const,
         code: "opencode.schema",
         message: error.message ?? "Invalid generated OpenCode setting.",
-        file: source,
+        ...source,
         jsonPath: error.instancePath,
       })),
     );

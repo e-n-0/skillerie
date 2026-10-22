@@ -16,7 +16,7 @@ Home: `harnesses.pi.path`, or `~/.pi/agent`.
 | `agents/` | exclusive tree | One Markdown agent per source agent, plus `general-purpose.md` |
 | `extensions/` | exclusive tree | Filled by an asset named `extensions` |
 
-Pi only installs assets named `extensions` (or under `extensions/`); other assets are ignored. A `settings.json` template controls Pi settings.
+Discovered assets are selected automatically; use `assets` entity selection to exclude them. Pi only installs selected assets named `extensions` (or under `extensions/`); other assets are ignored. A `settings.json` template controls Pi settings.
 
 ## mcp.json
 

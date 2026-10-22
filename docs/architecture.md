@@ -7,7 +7,7 @@ skillerie separates user-owned source content, pure rendering, and installation.
 1. Load `skillerie.yaml`, parse YAML 1.2 with unique keys, validate its schema,
    apply defaults, and resolve supported string variables.
 2. Discover skills, agents, rules, instructions, MCP configuration, templates,
-   opt-in assets, seeds, and helper files from the user's repository, then
+   harness assets, seeds, and helper files from the user's repository, then
    resolve overrides and per-harness applicability.
 3. Lint the resolved model, including references to excluded entities and
    restrictions that a selected harness cannot enforce.

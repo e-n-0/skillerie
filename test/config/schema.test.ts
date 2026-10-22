@@ -65,9 +65,7 @@ it("accepts all authoring fields when a complete version one config is loaded", 
       opencode: {
         enabled: true,
         path: "~/runtime",
-        assets: ["formatter"],
         options: { url: "https://example.com" },
-        replaceAgents: { explorer: "reader" },
       },
     },
     paths: {
@@ -111,6 +109,29 @@ it("accepts all authoring fields when a complete version one config is loaded", 
       postInstall: [{ command: "node bin/setup.js" }, { command: "node bin/check.js" }],
     },
   });
+});
+
+it.each([
+  ["assets", ["formatter"]],
+  ["replaceAgents", { explorer: "explore" }],
+] as const)("rejects removed harness key %s when loading configuration", async (key, value) => {
+  // Given: a harness still using a removed configuration key.
+  const repo = await configRepo(
+    JSON.stringify({ version: 1, harnesses: { omo: { [key]: value } } }),
+  );
+
+  // When: configuration is loaded.
+  const result = await loadConfig(repo, env);
+
+  // Then: the normal unknown-key diagnostic points at the rejected key.
+  expect(result.config).toBeUndefined();
+  expect(result.diagnostics).toContainEqual(
+    expect.objectContaining({
+      severity: "error",
+      code: "config.schema",
+      jsonPath: `/harnesses/omo/${key}`,
+    }),
+  );
 });
 
 it.each(["skills", "agents", "rules", "assets"] as const)(

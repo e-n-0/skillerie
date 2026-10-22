@@ -17,7 +17,7 @@ import type {
   StructuredCall,
   StructuredValue,
 } from "../../dialect/index.js";
-import { agentDirectory, capabilitiesFor } from "./capabilities.js";
+import { agentDirectory, capabilities } from "./capabilities.js";
 import { renderQuestions } from "./questions.js";
 import { rewriteSearchCalls } from "./search.js";
 
@@ -119,7 +119,7 @@ export function convertText(
 ): DialectResult {
   const options: DialectOptions = {
     harness: "omo",
-    capabilities: capabilitiesFor(ctx),
+    capabilities,
     file: source.file,
     ...(source.childAgent === undefined ? {} : { childAgent: source.childAgent }),
     renderQuestions,

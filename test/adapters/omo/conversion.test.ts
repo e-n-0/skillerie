@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { capabilities } from "../../../src/adapters/omo/capabilities.js";
 import { convertText } from "../../../src/adapters/omo/conversion.js";
-import { payload, setup, withReplacements } from "./helpers.js";
+import { payload, setup } from "./helpers.js";
 
 let sample: Awaited<ReturnType<typeof setup>>;
 beforeEach(async () => {
@@ -60,12 +60,12 @@ it("rewrites skill root and invocation variables when outside a code fence", () 
   expect(result.text.match(/\$ARGUMENTS/g)).toHaveLength(1);
 });
 
-it("renders native task payloads when replacement aliases and namespaces are used", () => {
-  // Given: a configurable native replacement and accepted source-only fields.
-  const ctx = withReplacements(sample.ctx, { explorer: "explore" });
+it("renders native task payloads when canonical aliases and namespaces are used", () => {
+  // Given: a namespaced canonical alias and accepted source-only fields.
+  const ctx = sample.ctx;
   // When: a structured task is converted.
   const result = convertText(
-    'Task(subagent_type="tools:explorer", prompt="Inspect", description="Inspect sources", run_in_background=true, model="parent", resume="old", command="ignored")',
+    'Task(subagent_type="tools:Explore", prompt="Inspect", description="Inspect sources", run_in_background=true, model="parent", resume="old", command="ignored")',
     ctx,
     { file: "skills/example/SKILL.md" },
   );
@@ -117,11 +117,11 @@ it("uses read to load a skill when the source invokes Skill", () => {
   expect(result.diagnostics).toEqual([]);
 });
 
-it("maps backtick agent references when replacements are configured", () => {
+it("maps backtick agent references when canonical aliases are used", () => {
   // Given: both canonical and namespaced native-agent references.
-  const ctx = withReplacements(sample.ctx, { explorer: "explore" });
+  const ctx = sample.ctx;
   // When: prose references are converted.
-  const result = convertText("`explorer` `productivity:explorer`", ctx, { file: "agent.md" });
+  const result = convertText("`Explore` `productivity:Explore`", ctx, { file: "agent.md" });
   // Then: both references name the native agent.
   expect(result.text).toBe("`explore` `explore`");
 });

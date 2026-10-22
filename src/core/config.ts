@@ -19,14 +19,12 @@ export interface EntitySettings extends EntitySelection {
   readonly harnesses: HarnessMap<EntitySelection>;
 }
 
-/** Normalized harness settings; executable assets are never implicitly enabled. */
+/** Normalized harness settings. */
 export interface ResolvedHarnessConfig {
   readonly enabled: boolean;
   /** Absolute installation root after environment and path expansion. */
   readonly path: string;
-  readonly assets: readonly string[];
   readonly options: JsonObject;
-  readonly replaceAgents: Readonly<Record<string, string>>;
 }
 
 /** Absolute named paths; additional names are available through paths variables. */

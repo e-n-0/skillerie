@@ -4,7 +4,7 @@ import { parseTree, printParseErrorCode } from "jsonc-parser";
 import type { ParseError } from "jsonc-parser";
 import type { Diagnostic, SourceModel } from "../core/types.js";
 
-/** Support files and opt-in assets are syntax-checked without expanding their values. */
+/** Support files and harness assets are syntax-checked without expanding their values. */
 export async function lintJsonSources(model: SourceModel): Promise<readonly Diagnostic[]> {
   const files = new Set([
     ...model.skills.flatMap((skill) => skill.supportFiles.map((file) => file.sourcePath)),

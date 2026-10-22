@@ -21,4 +21,4 @@ Issues we treat as security problems include:
 - reporting an agent restriction as enforced when the harness doesn't enforce it;
 - leaking environment values or secrets into rendered output, snapshots, manifests, or diagnostics.
 
-skillerie runs `hooks.postInstall` commands and installs assets you opt into. Those run with your permissions by design, so review configuration repositories before installing them.
+skillerie runs `hooks.postInstall` commands and automatically selects discovered harness assets unless excluded through `assets` entity selection. Those run with your permissions by design, so review configuration repositories before installing them.

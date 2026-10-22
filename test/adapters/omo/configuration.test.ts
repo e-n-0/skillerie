@@ -5,7 +5,7 @@ import { afterEach, beforeEach, expect, it } from "vitest";
 import { adapter } from "../../../src/adapters/omo/index.js";
 import type { Agent, ResolvedContext } from "../../../src/core/types.js";
 import { syncRepo } from "../../../src/engine/index.js";
-import { rendered, setup, withReplacements, withTemplates } from "./helpers.js";
+import { rendered, setup, withTemplates } from "./helpers.js";
 
 let sample: Awaited<ReturnType<typeof setup>>;
 beforeEach(async () => {
@@ -81,15 +81,31 @@ it.each(["description", "prompt"])(
   },
 );
 
-it("omits replaced custom agents when a native replacement is configured", async () => {
-  // Given: an effective custom agent replaced by a native implementation.
-  const ctx = withReplacements(sample.ctx, { auditor: "explore" });
+it("omits custom agents when disabled for OMO", async () => {
+  // Given: an agent disabled through normal per-harness selection.
+  const configFile = join(sample.repo, "skillerie.yaml");
+  await writeFile(
+    configFile,
+    (await readFile(configFile, "utf8")) +
+      "\nagents:\n  harnesses:\n    omo:\n      disabled: [auditor]\n",
+  );
   // When: OMO renders its inline agents.
-  const result = await adapter.render(ctx);
-  // Then: the replacement is not overwritten by the custom prompt.
-  expect(result.metadata["agents"]).toEqual(["builder"]);
-  expect(parse(rendered(result, "omo.jsonc"))).toMatchObject({
+  const result = await syncRepo(sample.repo, {
+    env: sample.env,
+    harness: "omo",
+    adapters: new Map([["omo", async () => ({ adapter })]]),
+  });
+  // Then: only the selected custom agent is generated.
+  expect(result.diagnostics).toEqual([]);
+  if (!result.generation) throw new TypeError("No generation produced.");
+  const config: unknown = parse(
+    await readFile(join(result.generation.dir, "omo/omo.jsonc"), "utf8"),
+  );
+  expect(config).toMatchObject({
     "[native]": { agents: { builder: { max_turns: 12 } } },
+  });
+  expect(config).toMatchObject({
+    "[native]": { agents: expect.not.objectContaining({ auditor: expect.anything() }) },
   });
 });
 

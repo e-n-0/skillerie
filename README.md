@@ -31,7 +31,7 @@ npx skillerie install
 | Rule | `rules/<name>.md` | OpenCode `rules/` files; appended to `AGENTS.md` for Codex, OMO, and Pi |
 | MCP server | `mcp.json` | The MCP configuration of each harness |
 | Harness template | `harnesses/<harness>/templates/` | Native settings files merged with generated content |
-| Asset | `harnesses/<harness>/assets/<name>` | Linked as-is, only when listed under `harnesses.<harness>.assets` |
+| Asset | `harnesses/<harness>/assets/<name>` | Automatically selected for its harness; use `assets` entity selection to exclude it |
 | Seed | `harnesses/<harness>/seeds/` | Copied once if missing, then owned by you |
 | Harness-scoped entity | `harnesses/<harness>/skills/`, `harnesses/<harness>/agents/` | A skill or agent rendered for that harness only |
 | Post-install hook | `hooks.postInstall` in `skillerie.yaml` | Shell commands run after a successful install |

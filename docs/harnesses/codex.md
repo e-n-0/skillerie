@@ -16,7 +16,7 @@ Home: `harnesses.codex.path`, or `$CODEX_HOME`, or `~/.codex`.
 
 Other templates are linked into the home under their own names. Seeds from `harnesses/codex/seeds/` are copied into the home when missing.
 
-Assets are linked file by file. Files ending in `.rules` are placed under `rules/` (Codex exec policy rules); everything else keeps its path relative to the home.
+Discovered assets are selected automatically and linked file by file; use `assets` entity selection to exclude them. Files ending in `.rules` are placed under `rules/` (Codex exec policy rules); everything else keeps its path relative to the home.
 
 ## config.toml
 

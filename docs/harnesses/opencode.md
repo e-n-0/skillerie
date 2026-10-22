@@ -17,7 +17,7 @@ Home: `harnesses.opencode.path`, or `$XDG_CONFIG_HOME/opencode`, or `~/.config/o
 | `rules/` | exclusive tree | One file per rule |
 | `plugins/` | exclusive tree | Filled by an asset named `plugins` |
 
-Other templates and file assets are linked into the home under their own names. Directory assets become exclusive trees at `<home>/<asset name>`.
+Discovered assets are selected automatically; use `assets` entity selection to exclude them. Other templates and file assets are linked into the home under their own names. Directory assets become exclusive trees at `<home>/<asset name>`.
 
 ## opencode.jsonc
 

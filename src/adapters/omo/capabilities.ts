@@ -31,16 +31,6 @@ export const capabilities: Capabilities = {
   supportsRules: true,
 };
 
-export function capabilitiesFor(ctx: ResolvedContext): Capabilities {
-  return {
-    ...capabilities,
-    nativeAgentReplacements: {
-      ...capabilities.nativeAgentReplacements,
-      ...ctx.snapshot.config.harnesses.omo?.replaceAgents,
-    },
-  };
-}
-
 export function defaultPaths(env: Environment): HarnessPaths {
   const home = resolve(env["HOME"] || homedir(), ".omo");
   const agentsDir = resolve(env["OMO_CODING_AGENT_DIR"] || join(home, "agent"));

@@ -68,7 +68,6 @@ interface SelectionInput<T extends Entity> {
   readonly settings: EntitySettings;
   readonly config: ResolvedConfig;
   readonly apply: (entity: T, fields: EntityOverride) => T;
-  readonly optIn?: boolean;
 }
 
 function resolveSelection<T extends Entity>(
@@ -84,9 +83,7 @@ function resolveSelection<T extends Entity>(
   const entities = input.entities.map((entity) => {
     const applicable = harnessIds.filter(
       (harness) =>
-        input.config.harnesses[harness]?.enabled &&
-        selected(entity, input.settings, harness) &&
-        (!input.optIn || input.config.harnesses[harness]?.assets.includes(entity.name)),
+        input.config.harnesses[harness]?.enabled && selected(entity, input.settings, harness),
     );
     for (const harness of applicable)
       harnesses[harness]?.push({
@@ -138,7 +135,6 @@ export function resolveEntities(
     entities: inventory.assets,
     settings: config.assets,
     config,
-    optIn: true,
     apply: (entity, fields) => ({
       ...entity,
       ...(fields.requires ? { requires: fields.requires } : {}),
