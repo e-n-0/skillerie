@@ -153,12 +153,13 @@ export async function check(ctx: ResolvedContext): Promise<readonly Diagnostic[]
       ? {
           severity: "info",
           code: "omo.cli.skipped",
-          message: "OMO has no read-only CLI config validator; headless schema checks were used.",
+          message:
+            "OMO has no config validator, so skillerie checked the rendered config against OMO's schema.",
         }
       : {
           severity: "info",
           code: "omo.cli.absent",
-          message: "OMO CLI is absent; native CLI validation was skipped.",
+          message: "OMO CLI not found; skipped its config check.",
         },
   );
   return diagnostics;

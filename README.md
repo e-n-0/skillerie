@@ -21,7 +21,7 @@
   <a href="docs/config.md">Docs</a>
 </p>
 
-skillerie keeps your coding-agent setup in one git repository: skills, agents, rules, instructions and MCP servers, but also each harness's own settings files, plugins and extensions. It renders native configuration for [OpenCode](https://opencode.ai), [Codex](https://github.com/openai/codex), [OMO](https://github.com/code-yeongyu/oh-my-openagent) and [Pi](https://pi.dev) and installs it, so every harness on every machine stays in sync.
+skillerie keeps your coding-agent setup in one git repository: skills, agents, rules, instructions, MCP servers, and each harness's own settings files, plugins and extensions. It renders native configuration for [OpenCode](https://opencode.ai), [Codex](https://github.com/openai/codex), [OMO](https://github.com/code-yeongyu/oh-my-openagent) and [Pi](https://pi.dev) and installs it, so every harness on every machine stays in sync.
 
 ```mermaid
 flowchart LR
@@ -34,11 +34,11 @@ flowchart LR
 
 ## Why skillerie
 
-- **One source of truth.** Write a skill once in plain Markdown. skillerie translates tool names, question tools, sub-agents and skill references into what each harness understands.
-- **More than skills.** Keep each harness's settings (`opencode.jsonc`, Codex `config.toml`, OMO and Pi settings), plugins, extensions and other files in the same repo. skillerie merges them with what it generates, so a new machine gets your exact setup with one `install`.
-- **Reuse community skills.** Load skills straight from GitHub, pinned to a tag or commit, and run `skillerie outdated` to see when upstream moves.
-- **Safe by default.** Dry-run every install, back up anything replaced, keep your manual edits, and undo it all with `skillerie uninstall`.
-- **Checked before it ships.** `validate` catches broken references and invalid frontmatter, and `doctor` has Codex and OpenCode check the config skillerie renders for them.
+- Write a skill once in plain Markdown. skillerie translates tool names, question tools, sub-agents and skill references into what each harness understands.
+- Keep each harness's settings (`opencode.jsonc`, Codex `config.toml`, OMO and Pi settings), plugins, extensions and other files in the same repo. skillerie merges them with what it generates, so a new machine gets your exact setup with one `install`.
+- Load community skills straight from GitHub, pinned to a tag or commit, and run `skillerie outdated` to see when upstream moves.
+- Dry-run every install. skillerie backs up anything it replaces, leaves your manual edits alone, and `skillerie uninstall` undoes it all.
+- `validate` catches broken references and invalid frontmatter, and `doctor` has Codex and OpenCode check the config skillerie renders for them.
 
 ## Quickstart
 
@@ -74,8 +74,6 @@ and ask me before installing anything.
 ```
 
 ## Supported harnesses
-
-Each harness gets skills, agents, rules, instructions and MCP servers in its own native format, merged with your harness settings.
 
 <!-- prettier-ignore -->
 | Harness | Installs into |

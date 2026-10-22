@@ -1,0 +1,4 @@
+type: docs
+description: >-
+  Clearer CLI help and plainer doctor and install messages, including how to
+  replace a file you edited.

@@ -115,7 +115,7 @@ export class Planner {
       severity: "warn",
       code: "install.user-edit",
       file: entry.target,
-      message: "User-edited managed entry was preserved.",
+      message: "You edited this file, so skillerie left it alone. Use --force to replace it.",
     });
     this.entries.set(entry.target, entry);
     return true;

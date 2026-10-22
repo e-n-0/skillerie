@@ -42,7 +42,7 @@ export async function check(ctx: ResolvedContext): Promise<readonly Diagnostic[]
         {
           severity: "info",
           code: "codex.checkSkipped",
-          message: "Codex CLI is absent; strict-config validation was skipped.",
+          message: "Codex CLI not found; skipped its config check.",
         },
       ];
     if (result.error && "killed" in result.error && result.error.killed)

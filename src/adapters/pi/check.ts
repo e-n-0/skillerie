@@ -18,7 +18,7 @@ export async function check(ctx: ResolvedContext): Promise<readonly Diagnostic[]
         severity: "info",
         code: "pi.check.unsupported",
         message:
-          "Pi is available, but exposes no headless configuration-only validator. Sources are parsed by the engine.",
+          "Pi has no config validator, so skillerie only checked that the rendered files parse.",
       },
     ];
   } catch (error) {
@@ -28,7 +28,7 @@ export async function check(ctx: ResolvedContext): Promise<readonly Diagnostic[]
         {
           severity: "info",
           code: "pi.check.skipped",
-          message: "Pi CLI is absent; headless validation was skipped.",
+          message: "Pi CLI not found; skipped its config check.",
         },
       ];
     return [
