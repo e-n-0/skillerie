@@ -59,7 +59,7 @@ jobs:
       - run: npm ci
       - id: plan
         run: node .github/scripts/changes.ts release --notes "$RUNNER_TEMP/notes.md" --changelog CHANGELOG.md >> "$GITHUB_OUTPUT"
-      - name: Publish, commit changelog, tag
+      - name: Stage on npm, commit changelog, tag, draft release
         if: steps.plan.outputs.version != ''
         env:
           VERSION: ${{ steps.plan.outputs.version }}
@@ -70,8 +70,10 @@ jobs:
           git commit -m "chore(release): v$VERSION" CHANGELOG.md
           npm version "$VERSION" --no-git-tag-version
           npm run build
-          npm publish --access public
+          npm stage publish --access public
           git checkout -- package.json package-lock.json
           git pull --rebase origin main
           git push origin HEAD:main
-          gh release create "v$VERSION" --target "$(git rev-parse HEAD)" --title "v$VERSION" --notes-file "$RUNNER_TEMP/notes.md"
+          git tag "v$VERSION"
+          git push origin "v$VERSION"
+          gh release create "v$VERSION" --draft --verify-tag --title "v$VERSION" --notes-file "$RUNNER_TEMP/notes.md"
