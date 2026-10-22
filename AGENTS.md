@@ -31,6 +31,3 @@ Adapters only describe rendered files and install actions. The engine performs
 all filesystem mutations, ownership checks, backups, locking, and rollback.
 Capability declarations must describe enforced behavior; prompt text does not
 enforce permissions. Core imports go through `src/core/types.ts`.
-
-This bootstrap intentionally contains throwing module stubs and commands that
-exit with status 2. Replace each stub with its implementation and focused tests.
