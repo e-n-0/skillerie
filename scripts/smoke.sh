@@ -25,7 +25,7 @@ entries="$(tar -tzf "$tarball")"
 for required in \
   dist/cli.js \
   schema/skillerie.schema.json \
-  LICENSE NOTICE README.md; do
+  LICENSE README.md; do
   if ! grep -Fxq "package/$required" <<< "$entries"; then
     printf 'Missing package file: %s\n' "$required" >&2
     exit 1
