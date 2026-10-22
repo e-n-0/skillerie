@@ -79,12 +79,12 @@ Agents can also start from [`llms.txt`](llms.txt), an index of the documentation
 Each harness gets skills, agents, rules, instructions and MCP servers in its own native format, merged with your harness settings.
 
 <!-- prettier-ignore -->
-| Harness | Installs into | Notes |
-|-|-|-|
-| [OpenCode](https://opencode.ai) | `~/.config/opencode` | [docs/harnesses/opencode.md](docs/harnesses/opencode.md) |
-| [Codex](https://github.com/openai/codex) | `~/.codex` | [docs/harnesses/codex.md](docs/harnesses/codex.md) |
-| [OMO](https://github.com/code-yeongyu/oh-my-openagent) | `~/.omo` | [docs/harnesses/omo.md](docs/harnesses/omo.md) |
-| [Pi](https://pi.dev) | `~/.pi/agent` | [docs/harnesses/pi.md](docs/harnesses/pi.md) |
+| Harness | Installs into |
+|-|-|
+| [OpenCode](docs/harnesses/opencode.md) | `~/.config/opencode` |
+| [Codex](docs/harnesses/codex.md) | `~/.codex` |
+| [OMO](docs/harnesses/omo.md) | `~/.omo` |
+| [Pi](docs/harnesses/pi.md) | `~/.pi/agent` |
 
 ## Documentation
 
