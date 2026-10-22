@@ -25,7 +25,7 @@ skillerie keeps your coding-agent setup in one git repository: skills, agents, r
 
 ```mermaid
 flowchart LR
-  repo["Your config repo<br/>skills · agents<br/>rules · MCP<br/>settings · plugins"] --> skillerie((skillerie))
+  repo["Your config repo<br/>skills · agents<br/>rules · MCP<br/>settings · files"] --> skillerie((skillerie))
   skillerie --> OpenCode
   skillerie --> Codex
   skillerie --> OMO
