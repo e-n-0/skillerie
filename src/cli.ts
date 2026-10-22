@@ -14,17 +14,31 @@ import { InstallError } from "./install/index.js";
 export interface CliOptions extends EngineOptions {
   readonly stdout?: (text: string) => void;
   readonly stderr?: (text: string) => void;
+  /** Colors doctor diagnostics; defaults to whether the real stderr supports colors. */
+  readonly color?: boolean;
+}
+
+const SEVERITY_STYLE: Record<Diagnostic["severity"], string> = {
+  error: "1;31",
+  warn: "1;33",
+  info: "1;36",
+};
+
+function style(code: string, text: string): string {
+  return `\x1b[${code}m${text}\x1b[0m`;
 }
 
 /** Plain output has one independently located diagnostic per line. */
-export function formatDiagnostic(diagnostic: Diagnostic): string {
+export function formatDiagnostic(diagnostic: Diagnostic, color = false): string {
   const location =
     diagnostic.line !== undefined
       ? `:${diagnostic.line}`
       : diagnostic.jsonPath !== undefined
         ? `#${diagnostic.jsonPath}`
         : "";
-  return `${diagnostic.severity} ${diagnostic.file ?? "skillerie"}${location} ${diagnostic.code} ${diagnostic.message}`;
+  const where = `${diagnostic.file ?? "skillerie"}${location}`;
+  if (!color) return `${diagnostic.severity} ${where} ${diagnostic.code} ${diagnostic.message}`;
+  return `${style(SEVERITY_STYLE[diagnostic.severity], diagnostic.severity)} ${style("2", where)} ${style("90", diagnostic.code)} ${diagnostic.message}`;
 }
 
 /** Injectable engine dependencies exercise the same command path without global mocks. */
@@ -34,6 +48,11 @@ export async function runCli(
 ): Promise<number> {
   const stdout = dependencies.stdout ?? ((text: string) => process.stdout.write(text));
   const stderr = dependencies.stderr ?? ((text: string) => process.stderr.write(text));
+  const color =
+    dependencies.color ??
+    (dependencies.stderr === undefined &&
+      process.stderr.isTTY === true &&
+      process.stderr.hasColors());
   let exitCode = 0;
   const program = new Command()
     .name("skillerie")
@@ -162,7 +181,7 @@ export async function runCli(
         for (const diagnostic of result.diagnostics) {
           if (diagnostic.code === "merge.conflict")
             stdout(`CONFLICT ${diagnostic.file ?? "config.toml"} ${diagnostic.message}\n`);
-          else stderr(`${formatDiagnostic(diagnostic)}\n`);
+          else stderr(`${formatDiagnostic(diagnostic, color && name === "doctor")}\n`);
         }
         for (const installation of result.installations) {
           if (name === "status")
