@@ -1,67 +1,29 @@
 # Setting up skillerie: a guide for coding agents
 
-You are helping a user manage their coding-agent configuration with skillerie. Follow these steps in order. Ask the user before every step that changes their harness homes (`~/.config/opencode`, `~/.codex`, `~/.omo`, `~/.pi`).
+You are setting up skillerie for a user. Command details are in [install.md](install.md); this guide covers the order of steps, how to bring in the user's existing setup, and what to confirm with them first.
 
-## 1. Check prerequisites
+## Steps
 
-- `node --version` must be 22 or newer, and `git` must be installed.
-- Find the harnesses in use: `command -v opencode codex omo pi`.
-- If the user already has a skillerie config repository (a directory with `skillerie.yaml`), skip to step 4.
+1. Check that `node --version` is 22 or newer and find the harnesses in use with `command -v opencode codex omo pi`.
+2. If the user has no skillerie config repository yet, ask where to create one (suggest `~/agents`) and run `npx skillerie@latest init <dir>`. See [init](install.md#init).
+3. Import their existing setup, as described below.
+4. Run `npx skillerie validate` and fix every error. Warnings may stay; mention them.
+5. Run `npx skillerie install --check` and summarize the plan for the user: what gets linked, what gets backed up to `~/.Trash/skillerie`, and any `CONFLICT` lines. See [install](install.md#install).
+6. Install only after the user confirms. Run `npx skillerie doctor` afterwards and report any errors.
+7. Suggest committing the config repository to git, and tell the user to restart their harnesses.
 
-## 2. Create the config repository
+## Importing an existing setup
 
-Ask the user where to keep it if they haven't said; suggest `~/agents`. Then run:
+Ask which of these to import. Copy, don't move: the originals stay in place until `install` backs them up.
 
-```sh
-npx skillerie@latest init ~/agents
-```
-
-`init` enables the harnesses whose CLIs are on `PATH`. Pass `--harness opencode codex` to choose explicitly. It creates `skillerie.yaml`, `instructions.md`, `mcp.json`, and empty `skills/`, `agents/` and `rules/` directories.
-
-## 3. Bring in what the user already has
-
-Ask which of these to import, then copy, don't move. The originals stay in place until `install` backs them up.
-
-- **Skills**: directories containing a `SKILL.md` under `~/.config/opencode/skills`, `~/.codex/skills` (skip `.system`), `~/.omo/agent/skills`, `~/.pi/agent/skills`, `~/.agents/skills` and `~/.claude/skills`. Copy each into `skills/<name>/` with its support files. Skip symlinks that point into `~/.cache/skillerie`, because skillerie already manages those. When two copies share a name, show the user the differences and keep one.
-- **Skills from public repositories**: if a skill is an unmodified copy of a skill on GitHub, prefer a `skills.external` entry in `skillerie.yaml` over a copy, pinned with `ref` to a tag or commit. See [external skills](config.md#skillsexternal).
-- **Agents**: Markdown agents with frontmatter from `~/.config/opencode/agents` and `~/.claude/agents` go into `agents/<name>.md`.
-- **Instructions**: merge the user's global `AGENTS.md` (or `CLAUDE.md`) content into `instructions.md`. Show the merged result before saving.
-- **MCP servers**: translate existing server definitions into the `mcpServers` map of `mcp.json`, described in [mcp.json](config.md#mcpjson). Never copy tokens or keys into the repository; reference them through environment variables or files.
-
-## 4. Validate
-
-```sh
-npx skillerie validate
-```
-
-Fix every `error` and re-run until it exits 0. Warnings may stay; mention them to the user. The [authoring guide](authoring.md) explains the frontmatter and dialect that `validate` checks.
-
-## 5. Show the plan
-
-```sh
-npx skillerie install --check
-```
-
-This writes nothing. Summarize the plan for the user: how many paths will be linked, replaced (`BACKUP` lines, moved to `~/.Trash/skillerie`), or merged into existing config files. `CONFLICT` lines mean an existing config file already defines something skillerie manages; installing over them needs `--force`, which backs those definitions up first.
-
-## 6. Install, with the user's approval
-
-Ask the user to confirm, then run `npx skillerie install`. Add `--force` only if they agreed to take over the conflicts from step 5. Then run:
-
-```sh
-npx skillerie doctor
-```
-
-Report any `error` lines. Tell the user to restart their harnesses so they pick up the new skills and agents.
-
-## 7. Finish
-
-- Suggest `git init` and a first commit in the config repository so it can be shared across machines.
-- After any later change, the user runs `npx skillerie install` again; `npx skillerie outdated` reports external skills with newer upstream versions.
-- `npx skillerie uninstall` restores everything skillerie replaced.
+- **Skills:** directories with a `SKILL.md` in `~/.config/opencode/skills`, `~/.codex/skills` (skip `.system`), `~/.omo/agent/skills`, `~/.pi/agent/skills`, `~/.agents/skills` and `~/.claude/skills`. Copy each into `skills/<name>/` with its support files. Skip symlinks into `~/.cache/skillerie`, which skillerie already manages. When two copies share a name, show the user the differences and keep one.
+- **Public skills:** if a skill is an unmodified copy of one on GitHub, add a [`skills.external`](config.md#skillsexternal) entry pinned with `ref` instead of copying it.
+- **Agents:** Markdown agents with frontmatter from `~/.config/opencode/agents` and `~/.claude/agents` go into `agents/<name>.md`.
+- **Instructions:** merge the user's global `AGENTS.md` or `CLAUDE.md` into `instructions.md`, and show the result before saving.
+- **MCP servers:** translate existing definitions into the `mcpServers` map of [`mcp.json`](config.md#mcpjson).
 
 ## Rules
 
-- Never edit files inside harness homes or `~/.cache/skillerie` directly. Change the config repository and reinstall.
-- Never run `install`, `install --force` or `uninstall` without the user's explicit confirmation.
-- Keep secrets out of the repository.
+- Never run `install`, `install --force` or `uninstall` without the user's explicit confirmation. Use `--force` only if they agreed to take over the conflicts shown by `--check`.
+- Never edit files inside harness homes or `~/.cache/skillerie`; change the config repository and reinstall.
+- Never copy tokens or keys into the repository; reference them through environment variables or files.

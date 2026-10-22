@@ -72,8 +72,6 @@ Bring in the skills and agents I already have, show me the install plan,
 and ask me before installing anything.
 ```
 
-Agents can also start from [`llms.txt`](llms.txt), an index of the documentation.
-
 ## Supported harnesses
 
 Each harness gets skills, agents, rules, instructions and MCP servers in its own native format, merged with your harness settings.
