@@ -23,9 +23,9 @@ jobs:
       - run: npm ci
       - name: Release note
         if: github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'no-release-note')
-        run: npm run -s changes -- check --base "origin/$BASE_REF"
+        run: npm run -s changes -- check --pr "$PR_NUMBER"
         env:
-          BASE_REF: ${{ github.base_ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test
@@ -58,7 +58,7 @@ jobs:
       - run: npm install -g npm@latest
       - run: npm ci
       - id: plan
-        run: npm run -s changes -- release --notes "$RUNNER_TEMP/notes.md" --changelog CHANGELOG.md >> "$GITHUB_OUTPUT"
+        run: npm run -s changes -- release --notes "$RUNNER_TEMP/notes.md" >> "$GITHUB_OUTPUT"
       - if: steps.plan.outputs.version != ''
         run: npm version "$VERSION" --no-git-tag-version
         env:

@@ -13,8 +13,7 @@
     "starter",
     "README.md",
     "LICENSE",
-    "NOTICE",
-    "CHANGELOG.md"
+    "NOTICE"
   ],
   "engines": {
     "node": ">=22"
