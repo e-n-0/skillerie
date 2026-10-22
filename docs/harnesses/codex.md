@@ -41,7 +41,7 @@ Each skill's frontmatter is reduced to `name` and `description`. skillerie also 
 
 ## Agents
 
-Each agent becomes `agents/<name>.toml` with `name`, `description`, and `developer_instructions`. Codex can't enforce agent restrictions: `allowed_tools` gives a warning and is passed as guidance, while `readOnly` and `noShell` are errors and the agent isn't rendered. A `general-purpose` agent is always generated, replacing any source agent with that name.
+Each agent becomes `agents/<name>.toml` with `name`, `description`, and `developer_instructions`. Codex can't enforce agent restrictions: `allowed_tools` is guidance only, and the engine includes Codex in its single warning per agent. `readOnly` and `noShell` are errors and the agent isn't rendered. A `general-purpose` agent is always generated, replacing any source agent with that name.
 
 ## Questions
 

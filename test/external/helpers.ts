@@ -1,6 +1,7 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { pathToFileURL } from "node:url";
 import { stringify } from "yaml";
 import { runCli } from "../../src/cli.js";
 import type {
@@ -25,7 +26,7 @@ export function skill(
 }
 
 export async function externalFixture() {
-  const root = await mkdtemp(join(fileURLToPath(new URL("../", import.meta.url)), ".external-"));
+  const root = await realpath(await mkdtemp(join(tmpdir(), "skillerie-external-")));
   const repo = join(root, "config");
   const remote = join(root, "remote");
   const env: Environment = {

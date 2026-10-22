@@ -1,6 +1,7 @@
 import { isAbsolute, join, relative, resolve } from "node:path";
 import type {
   Adapter,
+  Agent,
   Diagnostic,
   Environment,
   HarnessId,
@@ -87,33 +88,45 @@ export async function renderHarness(adapter: Adapter, input: RenderInput) {
 }
 
 export function restrictionDiagnostics(
-  adapter: Adapter,
+  adapters: readonly Adapter[],
   model: SourceModel,
 ): readonly Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
-  const sources = model.harnesses[adapter.id];
-  for (const agent of sources?.agents ?? []) {
-    const restrictions = [
-      ["toolAllowlist", Boolean(agent.frontmatter.allowed_tools?.length), "allowed_tools"],
-      ["readOnly", agent.frontmatter.readOnly === true, "readOnly"],
-      ["noShell", agent.frontmatter.noShell === true, "noShell"],
-    ] as const;
-    for (const [capability, requested, field] of restrictions)
-      if (requested && !adapter.capabilities.permissionEnforcement[capability])
-        // allowed_tools is a common hint: warn that it is not enforced. readOnly/noShell are
-        // explicit hard restrictions, so an unenforceable one blocks the harness.
-        diagnostics.push({
-          severity: capability === "toolAllowlist" ? "warn" : "error",
-          code:
-            capability === "toolAllowlist" ? "engine.permission.unenforced" : "engine.permission",
-          message:
-            capability === "toolAllowlist"
-              ? `Harness ${adapter.id} cannot enforce allowed_tools for agent ${agent.name}; it is rendered as guidance only.`
-              : `Harness ${adapter.id} cannot enforce ${field} for agent ${agent.name}.`,
-          file: agent.file,
-          jsonPath: `/frontmatter/${field}`,
-        });
+  const guidance = new Map<string, { readonly agent: Agent; readonly harnesses: HarnessId[] }>();
+  for (const adapter of adapters) {
+    const sources = model.harnesses[adapter.id];
+    for (const agent of sources?.agents ?? []) {
+      if (
+        agent.frontmatter.allowed_tools !== undefined &&
+        !adapter.capabilities.permissionEnforcement.toolAllowlist
+      ) {
+        const entry = guidance.get(agent.name) ?? { agent, harnesses: [] };
+        entry.harnesses.push(adapter.id);
+        guidance.set(agent.name, entry);
+      }
+      const restrictions = [
+        ["readOnly", agent.frontmatter.readOnly === true, "readOnly"],
+        ["noShell", agent.frontmatter.noShell === true, "noShell"],
+      ] as const;
+      for (const [capability, requested, field] of restrictions)
+        if (requested && !adapter.capabilities.permissionEnforcement[capability])
+          diagnostics.push({
+            severity: "error",
+            code: "engine.permission",
+            message: `Harness ${adapter.id} cannot enforce ${field} for agent ${agent.name}.`,
+            file: agent.file,
+            jsonPath: `/frontmatter/${field}`,
+          });
+    }
   }
+  for (const { agent, harnesses } of guidance.values())
+    diagnostics.push({
+      severity: "warn",
+      code: "engine.permission.unenforced",
+      message: `allowed_tools for agent "${agent.name}" is guidance only on ${harnesses.join(", ")}; those harnesses cannot enforce it.`,
+      file: agent.file,
+      jsonPath: "/frontmatter/allowed_tools",
+    });
   return diagnostics;
 }
 

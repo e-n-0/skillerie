@@ -116,13 +116,12 @@ function comparator(token: string): ((current: Version) => boolean) | undefined 
   }
 }
 
-/** Local range support avoids introducing a runtime dependency for one engine pin. */
-export function checkEngineVersion(
-  pin: string | undefined,
+/** Undefined means the range or current version could not be parsed. */
+export function matchesVersionRange(
+  pin: string,
   current: string,
-  file: string,
-): readonly Diagnostic[] {
-  if (pin === undefined) return [];
+  includePrerelease = false,
+): boolean | undefined {
   const running = version(current);
   const groups = pin.split("||").map((group) => {
     const hyphen = /^\s*(\S+)\s+-\s+(\S+)\s*$/.exec(group);
@@ -138,29 +137,39 @@ export function checkEngineVersion(
   const valid =
     running?.precision === 3 &&
     groups.every((group) => group.checks.every((check) => check !== undefined));
-  const matches =
-    valid &&
-    groups.some((group) => {
-      if (running.prerelease.length) {
-        const permitsPrerelease = group.tokens.some((token) => {
-          const target = version(token.replace(/^(>=|<=|>|<|=|\^|~)/, ""));
-          return (
-            target?.prerelease.length &&
-            target.parts.every((part, index) => part === running.parts[index])
-          );
-        });
-        if (!permitsPrerelease) return false;
-      }
-      return group.checks.every((check) => check?.(running));
-    });
+  if (!valid) return undefined;
+  return groups.some((group) => {
+    if (!includePrerelease && running.prerelease.length) {
+      const permitsPrerelease = group.tokens.some((token) => {
+        const target = version(token.replace(/^(>=|<=|>|<|=|\^|~)/, ""));
+        return (
+          target?.prerelease.length &&
+          target.parts.every((part, index) => part === running.parts[index])
+        );
+      });
+      if (!permitsPrerelease) return false;
+    }
+    return group.checks.every((check) => check?.(running));
+  });
+}
+
+/** Local range support avoids introducing a runtime dependency for one engine pin. */
+export function checkEngineVersion(
+  pin: string | undefined,
+  current: string,
+  file: string,
+): readonly Diagnostic[] {
+  if (pin === undefined) return [];
+  const matches = matchesVersionRange(pin, current);
   if (matches) return [];
   return [
     {
       severity: "error",
-      code: valid ? "engine.incompatible" : "engine.range",
-      message: valid
-        ? `Engine ${current} does not satisfy ${pin}; install a compatible skillerie version.`
-        : `Invalid engine version range: ${pin}.`,
+      code: matches === undefined ? "engine.range" : "engine.incompatible",
+      message:
+        matches === undefined
+          ? `Invalid engine version range: ${pin}.`
+          : `Engine ${current} does not satisfy ${pin}; install a compatible skillerie version.`,
       file,
       jsonPath: "/engine",
     },

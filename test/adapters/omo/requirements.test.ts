@@ -66,15 +66,15 @@ it("renders OMO agents when allowed_tools is guidance only", async () => {
     adapters: new Map([["omo", async () => ({ adapter })]]),
     harness: "omo",
   });
-  // Then: the adapter warns and still produces a generation.
-  expect(result.diagnostics).toContainEqual(
+  // Then: only the engine warns and rendering still produces a generation.
+  expect(result.diagnostics).toEqual([
     expect.objectContaining({
       severity: "warn",
-      code: "omo.permission.unenforced",
+      code: "engine.permission.unenforced",
       jsonPath: "/frontmatter/allowed_tools",
       message: expect.stringContaining("guidance only"),
     }),
-  );
+  ]);
   expect(result.generation).toBeDefined();
 });
 

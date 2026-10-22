@@ -48,7 +48,7 @@ it("serializes agents when their instructions contain TOML delimiters", async ()
 });
 
 it.each([{ allowed_tools: ["Read"] }, { allowed_tools: [] }, { allowed_tools: "" }])(
-  "warns for unenforceable allowlists %j",
+  "leaves unenforceable allowlist warnings to the engine %j",
   async (restriction) => {
     // Given: a restricted agent passed directly to the adapter.
     const agent = {
@@ -68,16 +68,8 @@ it.each([{ allowed_tools: ["Read"] }, { allowed_tools: [] }, { allowed_tools: ""
     };
     // When: the adapter renders without engine preflight.
     const result = await adapter.render(input);
-    // Then: the hint warns but the agent file is still rendered.
-    expect(result.diagnostics).toContainEqual(
-      expect.objectContaining({
-        severity: "warn",
-        code: "codex.permission.unenforced",
-        file: agent.file,
-        jsonPath: "/frontmatter/allowed_tools",
-        message: expect.stringContaining("guidance only"),
-      }),
-    );
+    // Then: the adapter renders without duplicating the engine warning.
+    expect(result.diagnostics).toEqual([]);
     expect(result.files.map((file) => file.relPath)).toContain("agents/auditor.toml");
     expect(adapter.capabilities.permissionEnforcement).toEqual({
       toolAllowlist: false,

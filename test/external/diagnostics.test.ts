@@ -25,45 +25,37 @@ afterEach(async () => {
   await sample.cleanup();
 });
 
-it("uses origin locations when validation reports external lint and support findings", async () => {
-  // Given: an external skill and support file with warning-level findings.
+it("omits content diagnostics when external skills contain lint and support issues", async () => {
+  // Given: an external skill and support file with content lint issues.
   const options = { env: sample.env };
   // When: validation returns diagnostics after all source reads.
   const result = await validateRepo(sample.repo, options);
-  // Then: only diagnostic locations change; internal source paths still read real files.
-  expect(result.diagnostics).toContainEqual(
-    expect.objectContaining({
-      code: "lint.question.prose",
-      severity: "warn",
-      file: `${origin}/SKILL.md`,
-      jsonPath: "/body",
-    }),
-  );
-  expect(result.diagnostics).toContainEqual(
-    expect.objectContaining({
-      code: "source.json",
-      severity: "warn",
-      file: `${origin}/reference.json`,
-      line: 1,
-    }),
-  );
-  expect(JSON.stringify(result.diagnostics)).not.toContain(join(sample.root, "cache"));
+  // Then: no content findings escape, while internal paths still read real files.
+  expect(result.diagnostics).toEqual([]);
   const file = result.model?.skills[0]?.file;
   expect(file).toContain(join(sample.root, "cache"));
   expect(await readFile(file ?? "", "utf8")).toBe(skill("review", "Ask the user for details.\n"));
 });
 
+async function cacheBrokenMetadata(): Promise<string> {
+  await sample.put(join(sample.remote, "skills/review/SKILL.md"), "---\nname: review\n---\n");
+  const revision = await sample.commit();
+  await sample.configure([{ url: sample.url, ref: revision, path: "skills/review" }]);
+  await validateRepo(sample.repo, { env: sample.env });
+  return `${sample.url}@${revision.slice(0, 7)}/skills/review/SKILL.md`;
+}
+
 it.each(["validate", "sync", "install", "status", "doctor"])(
   "prints external origins when %s emits human diagnostics",
   async (command) => {
-    // Given: cached content, allowing doctor to remain offline.
-    await sample.command(["sync"]);
+    // Given: cached metadata errors, allowing doctor to remain offline.
+    const file = await cacheBrokenMetadata();
     // When: the real CLI runs the selected command.
     const result = await sample.command([command], {
       env: command === "doctor" ? { ...sample.env, PATH: "" } : sample.env,
     });
     // Then: diagnostic output contains the external origin and no machine cache location.
-    expect(result.stderr).toContain(`${origin}/SKILL.md#/body lint.question.prose`);
+    expect(result.stderr).toContain(`${file}#/description source.frontmatter`);
     expect(result.stderr).not.toContain(join(sample.root, "cache"));
   },
 );
@@ -71,8 +63,8 @@ it.each(["validate", "sync", "install", "status", "doctor"])(
 it.each(["validate", "sync", "install", "status", "doctor"])(
   "serializes external origins when %s emits JSON diagnostics",
   async (command) => {
-    // Given: cached external content with lint and support findings.
-    await sample.command(["sync"]);
+    // Given: cached external content with a missing required description.
+    const file = await cacheBrokenMetadata();
     // When: the real CLI serializes the command result.
     const result = await sample.command([command, "--json"], {
       env: command === "doctor" ? { ...sample.env, PATH: "" } : sample.env,
@@ -81,9 +73,10 @@ it.each(["validate", "sync", "install", "status", "doctor"])(
     expect(JSON.parse(result.stdout)).toMatchObject({
       diagnostics: expect.arrayContaining([
         expect.objectContaining({
-          code: "lint.question.prose",
-          file: `${origin}/SKILL.md`,
-          jsonPath: "/body",
+          code: "source.frontmatter",
+          severity: "error",
+          file,
+          jsonPath: "/description",
         }),
       ]),
     });

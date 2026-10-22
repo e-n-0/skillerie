@@ -21,24 +21,20 @@ export async function render(ctx: ResolvedContext): Promise<RenderResult> {
   }
   for (const agent of sources?.agents ?? []) {
     const restrictions = [
-      ["allowed_tools", agent.frontmatter.allowed_tools !== undefined],
       ["readOnly", agent.frontmatter.readOnly === true],
       ["noShell", agent.frontmatter.noShell === true],
     ] as const;
     const requested = restrictions.filter(([, enabled]) => enabled);
     for (const [field] of requested) {
-      const allowlist = field === "allowed_tools";
       diagnostics.push({
-        severity: allowlist ? "warn" : "error",
-        code: allowlist ? "codex.permission.unenforced" : "codex.permission",
-        message: allowlist
-          ? `Codex cannot enforce allowed_tools for agent ${agent.name}; it is guidance only.`
-          : `Codex cannot enforce ${field} for agent ${agent.name}.`,
+        severity: "error",
+        code: "codex.permission",
+        message: `Codex cannot enforce ${field} for agent ${agent.name}.`,
         file: agent.file,
         jsonPath: `/frontmatter/${field}`,
       });
     }
-    if (requested.some(([field]) => field !== "allowed_tools")) continue;
+    if (requested.length) continue;
     if (agent.name === "general-purpose") continue;
     const body = convertText(agent.body, { file: agent.file });
     diagnostics.push(...body.diagnostics);

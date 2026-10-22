@@ -3,7 +3,7 @@ import { constants } from "node:fs";
 import { access, readFile, stat } from "node:fs/promises";
 import { delimiter, dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { checkEngineVersion } from "../engine/compatibility.js";
+import { matchesVersionRange } from "../engine/compatibility.js";
 
 export type ExecutableLookup = (
   name: string,
@@ -106,8 +106,12 @@ export async function packageNodeRange(): Promise<{
   return { file, range };
 }
 
-export function versionSatisfies(range: string, version: string): boolean {
-  return checkEngineVersion(range, version, "package.json").length === 0;
+export function versionSatisfies(
+  range: string,
+  version: string,
+  includePrerelease = false,
+): boolean {
+  return matchesVersionRange(range, version, includePrerelease) === true;
 }
 
 export function extractVersion(output: string): string | undefined {

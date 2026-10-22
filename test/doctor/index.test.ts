@@ -76,6 +76,26 @@ it("compares the running Node and installed harness versions", async () => {
   );
 });
 
+it("accepts prerelease harness versions when they satisfy the supported range", async () => {
+  // Given: Pi reports a dated prerelease newer than its supported minimum.
+  const adapter = { ...fakeAdapter("pi"), supportedRange: ">=0.85.0" };
+  const options = doctorOptions(
+    async (name) => (name === "pi" ? "/virtual/pi" : undefined),
+    async () => "2026.10.19-2",
+  );
+  // When: doctor compares the installed harness against its adapter range.
+  const diagnostics = await runDoctor({
+    ...options,
+    adapters: new Map([...adapterRegistry(sample.root), ["pi", async () => ({ adapter })]]),
+  });
+  // Then: the prerelease is supported, not warned about.
+  expect(
+    diagnostics.filter(
+      (item) => item.code.startsWith("doctor.harness.") && item.file === "/virtual/pi",
+    ),
+  ).toEqual([expect.objectContaining({ code: "doctor.harness.supported", severity: "info" })]);
+});
+
 it("reports an absent harness CLI and an available required binary", async () => {
   // Given: the harness CLI is absent while declared binaries resolve through the injected lookup.
   const diagnosticsPromise = runDoctor(

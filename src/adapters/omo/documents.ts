@@ -90,18 +90,14 @@ export function renderAgents(ctx: ResolvedContext, diagnostics: Diagnostic[]): J
   for (const agent of ctx.model.harnesses.omo?.agents ?? []) {
     const { frontmatter } = agent;
     for (const [field, requested] of [
-      ["allowed_tools", Boolean(frontmatter.allowed_tools?.length)],
       ["readOnly", frontmatter.readOnly === true],
       ["noShell", frontmatter.noShell === true],
     ] as const) {
       if (requested) {
-        const allowlist = field === "allowed_tools";
         diagnostics.push({
-          severity: allowlist ? "warn" : "error",
-          code: allowlist ? "omo.permission.unenforced" : "omo.permission",
-          message: allowlist
-            ? `OMO cannot enforce allowed_tools for agent ${agent.name}; it is guidance only.`
-            : `OMO cannot enforce ${field} for agent ${agent.name}.`,
+          severity: "error",
+          code: "omo.permission",
+          message: `OMO cannot enforce ${field} for agent ${agent.name}.`,
           file: agent.file,
           jsonPath: `/frontmatter/${field}`,
         });

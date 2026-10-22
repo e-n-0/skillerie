@@ -109,7 +109,7 @@ export async function checkHarnesses(context: DoctorContext): Promise<readonly D
     }
 
     if (installed !== undefined) {
-      const supported = versionSatisfies(adapter.supportedRange, installed);
+      const supported = versionSatisfies(adapter.supportedRange, installed, true);
       diagnostics.push({
         severity: supported ? "info" : "warn",
         code: supported ? "doctor.harness.supported" : "doctor.harness.unsupported",

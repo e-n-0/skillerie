@@ -122,11 +122,22 @@ export async function readExternalSkills(
   return { skills, files, diagnostics };
 }
 
+/** Display the repository rather than a configured tree ref and selection path. */
+export function externalRepositoryUrl(url: string): string {
+  const github =
+    /^(?:https:\/\/github\.com\/|ssh:\/\/(?:git@)?github\.com\/|git@github\.com:)([^/]+)\/([^/]+)/.exec(
+      url,
+    );
+  return github
+    ? `https://github.com/${github[1]}/${github[2]}`.replace(/\.git$/, "")
+    : url.replace(/\.git$/, "");
+}
+
 /** Display provenance without leaking the engine's cache layout. */
 export function externalOrigin(skill: Skill): string | undefined {
   const origin = skill.external;
   return origin
-    ? `${origin.url}@${origin.sha.slice(0, 8)}${origin.path ? `/${origin.path}` : ""}`
+    ? `${externalRepositoryUrl(origin.url)}@${origin.sha.slice(0, 8)}${origin.path ? `/${origin.path}` : ""}`
     : undefined;
 }
 

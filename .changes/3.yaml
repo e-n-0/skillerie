@@ -1,0 +1,5 @@
+type: fix
+description: >-
+  Quieter validate and doctor output: no content lint inside external skills,
+  one unenforced allowed_tools warning per agent, clean repository locations
+  for external files, and prerelease harness versions accepted by doctor.

@@ -117,6 +117,7 @@ export function lintModel(model: SourceModel, config: ResolvedConfig): readonly 
   const diagnostics: Diagnostic[] = [];
 
   for (const skill of model.skills) {
+    if (skill.source === "external") continue;
     const { descriptionPrefix, structure } = config.lint;
     if (
       descriptionPrefix.severity !== "off" &&
@@ -182,6 +183,7 @@ export function lintModel(model: SourceModel, config: ResolvedConfig): readonly 
         severity: config.lint.references.severity,
       };
       for (const skill of sources.skills) {
+        if (skill.source === "external") continue;
         lintBodyReferences(skill, context, diagnostics);
       }
       for (const agent of sources.agents) {
@@ -197,12 +199,5 @@ export function lintModel(model: SourceModel, config: ResolvedConfig): readonly 
     }
   }
 
-  const externalFiles = new Set(
-    model.skills.filter((skill) => skill.external).map((skill) => skill.file),
-  );
-  return diagnostics.map((diagnostic) =>
-    diagnostic.severity === "error" && diagnostic.file && externalFiles.has(diagnostic.file)
-      ? { ...diagnostic, severity: "warn" }
-      : diagnostic,
-  );
+  return diagnostics;
 }

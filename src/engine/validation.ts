@@ -1,4 +1,5 @@
 import { join, resolve } from "node:path";
+import type { Adapter } from "../core/types.js";
 import { registry } from "../adapters/index.js";
 import { loadConfig } from "../config/index.js";
 import { lintModel } from "../lint/index.js";
@@ -73,13 +74,15 @@ export async function validateRepo(
       ...lintInstructionReferences(evaluated.model, config),
     ].filter((item) => !prior.has(JSON.stringify(item))),
   );
+  const adapters: Adapter[] = [];
   for (const harness of HARNESS_IDS) {
     if (!config.harnesses[harness]?.enabled) continue;
     const load = (options.adapters ?? registry).get(harness);
     if (!load) continue;
     const { adapter } = await load();
-    diagnostics.push(...restrictionDiagnostics(adapter, evaluated.model));
+    adapters.push(adapter);
   }
+  diagnostics.push(...restrictionDiagnostics(adapters, evaluated.model));
   if (hasErrors(diagnostics))
     return { diagnostics: externalDiagnostics(diagnostics, diagnosticSources) };
   // Snapshot the discovered inventory, whose captured bytes predate filtering/expansion.
