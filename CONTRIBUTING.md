@@ -58,6 +58,12 @@ Read [docs/architecture.md](docs/architecture.md) before changing the engine con
 
 Keep each pull request focused on one change and describe what changed and how you tested it. Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/), for example `feat(codex): render exec policy assets` or `fix(install): keep seeds on uninstall`.
 
+## Release notes and releases
+
+Every pull request that changes user-visible behavior adds one file under `.changes/`; see [`.changes/README.md`](.changes/README.md) for the format. CI fails a pull request without a new note unless it carries the `no-release-note` label.
+
+Each push to `main` that adds at least one note publishes the next patch version to npm and creates a matching GitHub release. The version comes from the latest `vX.Y.Z` tag, so `package.json` in the repository stays at `0.0.0` and no release commit is pushed back. The release notes are the notes added since that tag, and `CHANGELOG.md` is generated from all notes and shipped in the package. Publishing uses npm trusted publishing from the `CI` workflow, so no npm token is stored in the repository.
+
 ## Code of conduct
 
 This project follows the [Contributor Covenant](CODE_OF_CONDUCT.md).

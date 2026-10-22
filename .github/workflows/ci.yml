@@ -2,54 +2,73 @@ name: CI
 
 on:
   push:
+    branches: [main]
   pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
 
 permissions:
   contents: read
 
 jobs:
   checks:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-        node: [22, 24]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ matrix.node }}
-          cache: npm
-      - run: npm ci
-      - run: npm run typecheck
-      - run: npm run lint
-      - run: npm test
-      - run: npm run build
-
-  smoke:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-        node: [22, 24]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ matrix.node }}
-          cache: npm
-      - run: npm ci
-      - run: npm run build
-      - run: npm run smoke
-
-  secrets:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Release note
+        if: github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'no-release-note')
+        run: npm run -s changes -- check --base "origin/$BASE_REF"
+        env:
+          BASE_REF: ${{ github.base_ref }}
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+      - run: npm run smoke
       - uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  release:
+    needs: checks
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: release
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          cache: npm
+      # Trusted publishing (OIDC) needs npm 11.5.1 or newer.
+      - run: npm install -g npm@latest
+      - run: npm ci
+      - id: plan
+        run: npm run -s changes -- release --notes "$RUNNER_TEMP/notes.md" --changelog CHANGELOG.md >> "$GITHUB_OUTPUT"
+      - if: steps.plan.outputs.version != ''
+        run: npm version "$VERSION" --no-git-tag-version
+        env:
+          VERSION: ${{ steps.plan.outputs.version }}
+      - if: steps.plan.outputs.version != ''
+        run: npm run build
+      - if: steps.plan.outputs.version != ''
+        run: npm publish --access public
+      - if: steps.plan.outputs.version != ''
+        run: gh release create "v$VERSION" --target "$GITHUB_SHA" --title "v$VERSION" --notes-file "$RUNNER_TEMP/notes.md"
+        env:
+          VERSION: ${{ steps.plan.outputs.version }}
+          GH_TOKEN: ${{ github.token }}

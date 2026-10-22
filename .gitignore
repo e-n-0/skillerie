@@ -5,3 +5,4 @@ coverage/
 .DS_Store
 *.tgz
 test/fixtures/**/generated/
+CHANGELOG.md

@@ -13,6 +13,7 @@
 
 ## Checklist
 
+- [ ] Release note added under `.changes/` (or the PR is labeled `no-release-note`)
 - [ ] Docs under `docs/` match the new behavior
 - [ ] Golden files, if changed, were reviewed
 - [ ] Fixtures use neutral names and contain no real paths, accounts, or credentials
