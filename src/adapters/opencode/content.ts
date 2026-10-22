@@ -123,22 +123,14 @@ export function renderAgent(agent: Agent) {
   const converted = convertText(agent.body, { file: agent.file, childAgent: true });
   const permissions = agentPermissions(agent);
   const diagnostics: Diagnostic[] = [...converted.diagnostics, ...permissions.diagnostics];
-  for (const [field, requested] of [
-    ["allowed_tools", agent.frontmatter.allowed_tools !== undefined],
-    ["readOnly", agent.frontmatter.readOnly === true],
-  ] as const) {
-    if (requested) {
-      const allowlist = field === "allowed_tools";
-      diagnostics.push({
-        severity: allowlist ? "warn" : "error",
-        code: allowlist ? "opencode.permission.unenforced" : "opencode.permission",
-        message: allowlist
-          ? `OpenCode cannot enforce allowed_tools for arbitrary tools; it is guidance only for ${agent.name}.`
-          : `OpenCode deny-only permissions cannot enforce ${field} for arbitrary tools.`,
-        file: agent.file,
-        jsonPath: `/frontmatter/${field}`,
-      });
-    }
+  if (agent.frontmatter.readOnly === true) {
+    diagnostics.push({
+      severity: "error",
+      code: "opencode.permission",
+      message: "OpenCode deny-only permissions cannot enforce readOnly for arbitrary tools.",
+      file: agent.file,
+      jsonPath: "/frontmatter/readOnly",
+    });
   }
   const skills = agent.frontmatter.skills ?? [];
   const guidance = [

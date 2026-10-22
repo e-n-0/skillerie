@@ -41,7 +41,7 @@ allowed-tools: [Read, Grep, Bash]
 | `metadata` | object | no | |
 | `requires` | object | no | See [requires](config.md#requires) |
 
-Unknown fields produce a warning and are dropped, so skills imported from elsewhere still load.
+Unknown fields are dropped. Local skills produce a warning; external skills skip content lint, including unknown-field warnings.
 
 Everything else in the skill directory is a support file: references, scripts, templates, data. Support files are copied with their permissions. Markdown support files (`*.md`) go through the same dialect translation as `SKILL.md`; other files are copied byte for byte. A nested directory that has its own `SKILL.md` is a separate skill and isn't copied as support.
 
@@ -80,7 +80,7 @@ Restrictions are checked against what each harness can enforce at runtime. Promp
 | `noShell` | enforced | error | error | enforced |
 | `readOnly` | error | error | error | error |
 
-A warning means the agent is still rendered and the list is passed along as guidance. An error stops `validate` for that harness. To keep such an agent elsewhere, exclude it for that harness under `agents.harnesses.<harness>.disabled`.
+The engine emits one `engine.permission.unenforced` warning per agent, listing all enabled harnesses where its `allowed_tools` list is guidance only. The agent is still rendered. An error stops `validate` for that harness. To keep such an agent elsewhere, exclude it for that harness under `agents.harnesses.<harness>.disabled`.
 
 ## Rule frontmatter
 

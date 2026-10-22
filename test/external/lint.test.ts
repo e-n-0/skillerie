@@ -11,11 +11,11 @@ afterEach(async () => {
   await sample.cleanup();
 });
 
-it("downgrades semantic and JSON findings when they belong to external skills", async () => {
+it("skips content findings when they belong to external skills", async () => {
   // Given: strict lints and external content that fails every configurable rule.
   await sample.put(
     join(sample.remote, "skills/review/SKILL.md"),
-    skill("review", "Ask the user for details. See `/missing`.\n").replace(
+    skill("review", "Ask the user for details. See `/missing`.\n", "custom-field: true\n").replace(
       "Use when reviewing a project.",
       "Review a project.",
     ),
@@ -32,23 +32,16 @@ it("downgrades semantic and JSON findings when they belong to external skills", 
   });
   // When: validation lints the external skill and its support files.
   const result = await validateRepo(sample.repo, { env: sample.env });
-  // Then: findings remain visible without blocking snapshot construction.
+  // Then: external content lint produces no diagnostics.
   expect(result.snapshot).toBeDefined();
-  expect(result.diagnostics.length).toBeGreaterThan(0);
-  expect(result.diagnostics.every((item) => item.severity === "warn")).toBe(true);
-  for (const code of [
-    "lint.description.prefix",
-    "lint.question.prose",
-    "lint.reference.missing",
-    "lint.structure.announce",
-    "source.json",
-  ])
-    expect(result.diagnostics).toContainEqual(expect.objectContaining({ code, severity: "warn" }));
+  expect(result.diagnostics).toEqual([]);
 });
 
 it.each([
   ["missing name", "---\ndescription: Use when reviewing.\n---\n"],
   ["missing description", "---\nname: review\n---\n"],
+  ["invalid name", "---\nname: Review\ndescription: Reviews changes.\n---\n"],
+  ["invalid description", "---\nname: review\ndescription: 42\n---\n"],
   ["unparseable frontmatter", "---\nname: [broken\n---\n"],
   ["no frontmatter", "A skill without metadata.\n"],
 ])("preserves metadata errors when an external skill has %s", async (_name, content) => {
@@ -91,7 +84,7 @@ it("keeps local prose failures as errors when external skills are configured", a
   );
   // When: validation runs alongside the external inventory.
   const result = await validateRepo(sample.repo, { env: sample.env });
-  // Then: the downgrade is scoped to external files.
+  // Then: content lint is still enforced for local files.
   expect(result.diagnostics).toContainEqual(
     expect.objectContaining({
       code: "lint.question.prose",
@@ -99,4 +92,18 @@ it("keeps local prose failures as errors when external skills are configured", a
       file: join(sample.repo, "skills/local/SKILL.md"),
     }),
   );
+});
+
+it("resolves local skill and agent references to external skills", async () => {
+  // Given: local sources reference an installed external skill.
+  await sample.put(join(sample.repo, "skills/local/SKILL.md"), skill("local", "See `/review`.\n"));
+  await sample.put(
+    join(sample.repo, "agents/reviewer.md"),
+    "---\nname: reviewer\ndescription: Reviews changes.\nskills: [review]\n---\nSee `/review`.\n",
+  );
+  // When: reference lint checks the local sources.
+  const result = await validateRepo(sample.repo, { env: sample.env });
+  // Then: external skills remain valid reference targets.
+  expect(result.snapshot).toBeDefined();
+  expect(result.diagnostics).toEqual([]);
 });

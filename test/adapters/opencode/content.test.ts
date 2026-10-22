@@ -198,7 +198,7 @@ it("renders native subagent metadata when a step budget is supplied", () => {
   });
 });
 
-it("warns when allowed_tools is guidance only and still renders the agent", () => {
+it("leaves guidance-only warnings to the engine when rendering an agent", () => {
   // Given: an allowlist the deny-only permission model cannot guarantee.
   const input = {
     ...agent,
@@ -206,16 +206,8 @@ it("warns when allowed_tools is guidance only and still renders the agent", () =
   };
   // When: rendering the native agent definition.
   const result = renderAgent(input);
-  // Then: the warning explains the limitation without blocking the file.
-  expect(result.diagnostics).toContainEqual(
-    expect.objectContaining({
-      severity: "warn",
-      code: "opencode.permission.unenforced",
-      file: agent.file,
-      jsonPath: "/frontmatter/allowed_tools",
-      message: expect.stringContaining("guidance only"),
-    }),
-  );
+  // Then: the adapter renders without duplicating the engine warning.
+  expect(result.diagnostics).toEqual([]);
   expect(result.file.relPath).toBe("agents/reader.md");
 });
 

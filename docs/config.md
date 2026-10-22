@@ -216,7 +216,7 @@ The engine uses your system `git` and passes through your environment for creden
 
 External skills use the same selection, overrides, per-harness settings, `requires`, dialect conversion, and rendering as local skills. Their resolved commits enter the input snapshot and install manifest, so a moving branch changes the generation hash even if its skill files did not change.
 
-Names must not collide with local skills or other external skills. Use `include` to select a noncolliding subset, or `skills.disabled` to exclude a conflicting name globally. External structure, description-prefix, question, reference, and JSON support-file syntax findings are warnings rather than errors. Missing `SKILL.md`, unparseable frontmatter, and missing `name` or `description` remain errors.
+Names must not collide with local skills or other external skills. Use `include` to select a noncolliding subset, or `skills.disabled` to exclude a conflicting name globally. Content lint is skipped for external skills: structure, description-prefix, questions, references, unknown frontmatter fields, and JSON support-file syntax produce no diagnostics. Missing `SKILL.md`, unparseable frontmatter, and missing or invalid `name` or `description` remain errors. References from local sources to external skills are still checked.
 
 ### Overrides
 

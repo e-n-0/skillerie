@@ -191,7 +191,6 @@ it("reports an invalid server when no command or URL is supplied", async () => {
 it.each([
   ["readOnly", true, "error", "omo.permission"],
   ["noShell", true, "error", "omo.permission"],
-  ["allowed_tools", ["Read", "Bash"], "warn", "omo.permission.unenforced"],
 ] as const)(
   "rejects %s when an applicable agent requests an unenforceable restriction",
   async (field, value, severity, code) => {

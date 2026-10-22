@@ -7,7 +7,9 @@ import type { Diagnostic, SourceModel } from "../core/types.js";
 /** Support files and harness assets are syntax-checked without expanding their values. */
 export async function lintJsonSources(model: SourceModel): Promise<readonly Diagnostic[]> {
   const files = new Set([
-    ...model.skills.flatMap((skill) => skill.supportFiles.map((file) => file.sourcePath)),
+    ...model.skills
+      .filter((skill) => skill.source !== "external")
+      .flatMap((skill) => skill.supportFiles.map((file) => file.sourcePath)),
     ...model.bin.map((file) => file.sourcePath),
   ]);
   const visit = async (directory: string): Promise<void> => {
@@ -27,11 +29,6 @@ export async function lintJsonSources(model: SourceModel): Promise<readonly Diag
     else files.add(asset.sourcePath);
   }
   const diagnostics: Diagnostic[] = [];
-  const externalFiles = new Set(
-    model.skills
-      .filter((skill) => skill.external)
-      .flatMap((skill) => skill.supportFiles.map((file) => file.sourcePath)),
-  );
   for (const file of [...files].sort()) {
     const extension = extname(file);
     if (extension !== ".json" && extension !== ".jsonc") continue;
@@ -43,7 +40,7 @@ export async function lintJsonSources(model: SourceModel): Promise<readonly Diag
     });
     diagnostics.push(
       ...errors.map((error) => ({
-        severity: externalFiles.has(file) ? ("warn" as const) : ("error" as const),
+        severity: "error" as const,
         code: "source.json",
         message: printParseErrorCode(error.error),
         file,

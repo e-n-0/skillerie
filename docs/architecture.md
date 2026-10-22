@@ -64,8 +64,8 @@ Only the engine mutates the filesystem.
 Resolved entities retain their origin and final applicable harnesses, including
 entities with empty applicability needed for reference diagnostics.
 External skills have source `external` and retain URL, ref, commit, and skill path.
-Rendered source comments use that origin rather than a cache path. External lint
-errors become warnings, but required metadata and frontmatter parsing remain errors.
+Rendered source comments use that origin rather than a cache path. External content
+lint is skipped, but required metadata and frontmatter parsing remain errors.
 `SourceModel.harnesses` contains effective entity copies with each harness's
 overrides applied, so adapters do not need to repeat precedence logic. Requirement
 evaluation receives captured environment, platform, harness, and binary probes;

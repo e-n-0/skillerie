@@ -27,7 +27,7 @@ The harness identifier. Configuration version 1 accepts `opencode`, `codex`, `om
 
 ### supportedRange
 
-A semver range of harness CLI versions the adapter targets, for example `">=1.1.0 <2.0.0"`. `doctor` runs `<id> --version`, extracts the version, and warns when it falls outside this range.
+A semver range of harness CLI versions the adapter targets, for example `">=1.1.0 <2.0.0"`. `doctor` runs `<id> --version`, extracts the version, and warns when it falls outside this range. Harness comparisons include prerelease versions.
 
 ### capabilities
 
@@ -53,7 +53,7 @@ export const capabilities: Capabilities = {
 | `nativeAgentReplacements` | Agent names that map to native agents. Used by `resolveAgentAlias`. |
 | `supportsCommands`, `supportsRules` | Whether the harness has slash commands and rule files |
 
-Be strict with `permissionEnforcement`. Set a flag only when the harness itself blocks the action. The engine turns every requested restriction the adapter can't enforce into a diagnostic: a warning for `allowed_tools`, an error for `readOnly` and `noShell`. Telling the model "don't use the shell" in a prompt is not enforcement.
+Be strict with `permissionEnforcement`. Set a flag only when the harness itself blocks the action. The engine emits one `allowed_tools` warning per agent listing all enabled harnesses that cannot enforce it, and errors for unenforceable `readOnly` and `noShell`. Adapters must not duplicate that allowlist warning. Telling the model "don't use the shell" in a prompt is not enforcement.
 
 ### defaultPaths(env)
 

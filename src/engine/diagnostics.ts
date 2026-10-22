@@ -1,6 +1,7 @@
 import { isAbsolute } from "node:path";
 import type { Diagnostic, ResolvedExternalSkill, SourceModel } from "../core/types.js";
 import { relativePath, within } from "../model/files.js";
+import { externalRepositoryUrl } from "../model/external.js";
 
 type DiagnosticSource = Pick<ResolvedExternalSkill, "directory" | "revision">;
 
@@ -26,7 +27,7 @@ export function externalDiagnostics(
       .join("/");
     return {
       ...diagnostic,
-      file: `${source.revision.url}@${source.revision.sha.slice(0, 7)}${path ? `/${path}` : ""}`,
+      file: `${externalRepositoryUrl(source.revision.url)}@${source.revision.sha.slice(0, 7)}${path ? `/${path}` : ""}`,
     };
   });
 }

@@ -35,7 +35,7 @@ Each skill's frontmatter is reduced to `name`, `description`, `license`, and `co
 
 ## Agents
 
-Agents are written as `mode: subagent` Markdown files. `maxTurns` becomes `steps`. `allowed_tools` becomes a `permission` map that denies every built-in tool not on the list; MCP tools in the list are allowed through, and an unknown tool name is an error. Because OpenCode can't deny arbitrary plugin or MCP tools this way, `allowed_tools` also produces a warning that it's guidance only. `noShell` denies both `bash` and `task`, so a child agent can't run the shell on its behalf. `readOnly` can't be enforced and is an error. Agents with `skills` are told to load them before starting.
+Agents are written as `mode: subagent` Markdown files. `maxTurns` becomes `steps`. `allowed_tools` becomes a `permission` map that denies every built-in tool not on the list; MCP tools in the list are allowed through, and an unknown tool name is an error. Because OpenCode can't deny arbitrary plugin or MCP tools this way, the engine includes OpenCode in its single guidance-only warning per agent. `noShell` denies both `bash` and `task`, so a child agent can't run the shell on its behalf. `readOnly` can't be enforced and is an error. Agents with `skills` are told to load them before starting.
 
 ## Rules
 

@@ -14,6 +14,7 @@ import { relativePath, within } from "./files.js";
 import {
   agentSchema,
   capDescription,
+  externalSkillSchema,
   ruleSchema,
   skillSchema,
   validateFields,
@@ -105,7 +106,11 @@ export function readSkills(files: readonly SourceFile[], input: EntityInput): re
         });
       continue;
     }
-    const result = validateFields(skillSchema, parsed.frontmatter, file.sourcePath);
+    const result = validateFields(
+      input.source === "external" ? externalSkillSchema : skillSchema,
+      parsed.frontmatter,
+      file.sourcePath,
+    );
     input.diagnostics.push(...result.diagnostics);
     const frontmatter = result.value;
     const name = input.namedRoot === dir ? (frontmatter?.name ?? basename(dir)) : basename(dir);

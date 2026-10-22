@@ -34,7 +34,7 @@ const common = {
   requires: requiresSchema,
 } as const;
 const ajv = new Ajv({ allErrors: true, ownProperties: true });
-export const skillSchema = ajv.compile<SkillFrontmatter>({
+const skillFields = {
   type: "object",
   additionalProperties: false,
   required: ["name", "description"],
@@ -48,7 +48,13 @@ export const skillSchema = ajv.compile<SkillFrontmatter>({
     compatibility: text,
     metadata: { type: "object" },
   },
-});
+} as const;
+export const skillSchema = ajv.compile<SkillFrontmatter>(skillFields);
+export const externalSkillSchema = new Ajv({
+  allErrors: true,
+  ownProperties: true,
+  removeAdditional: true,
+}).compile<SkillFrontmatter>(skillFields);
 export const agentSchema = ajv.compile<AgentFrontmatter>({
   type: "object",
   additionalProperties: false,

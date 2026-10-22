@@ -46,4 +46,4 @@ With `shared.agentsSkillsDir: dedupe` (the default), skillerie appends `!**/<nam
 
 ## Restrictions and questions
 
-OMO enforces none of the agent restrictions: `allowed_tools` produces a warning and is passed as guidance, while `readOnly` and `noShell` are errors. `AskUserQuestion` blocks become `ask_user_question` calls, with headers of 12 characters, up to 4 options, and up to 4 questions.
+OMO enforces none of the agent restrictions: `allowed_tools` is guidance only, and the engine includes OMO in its single warning per agent. `readOnly` and `noShell` are errors. `AskUserQuestion` blocks become `ask_user_question` calls, with headers of 12 characters, up to 4 options, and up to 4 questions.
