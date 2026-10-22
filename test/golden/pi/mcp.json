@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "docs": {
+      "url": "https://docs.example.com/mcp"
+    },
+    "tracker": {
+      "command": "sh",
+      "args": [
+        "/home/alice/config/bin/tracker.sh"
+      ]
+    }
+  }
+}

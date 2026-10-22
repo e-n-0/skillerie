@@ -1,0 +1,42 @@
+[
+  {
+    "relPath": "AGENTS.md",
+    "kind": "file",
+    "mode": 420
+  },
+  {
+    "relPath": "mcp.json",
+    "kind": "file",
+    "mode": 420
+  },
+  {
+    "relPath": "omo.jsonc",
+    "kind": "file",
+    "mode": 420
+  },
+  {
+    "relPath": "skills/implement/SKILL.md",
+    "kind": "file",
+    "mode": 420
+  },
+  {
+    "relPath": "skills/implement/references/example.json",
+    "kind": "file",
+    "mode": 420
+  },
+  {
+    "relPath": "skills/outline/SKILL.md",
+    "kind": "file",
+    "mode": 420
+  },
+  {
+    "relPath": "skills/outline/references/checklist.md",
+    "kind": "file",
+    "mode": 420
+  },
+  {
+    "relPath": "skills/verify/SKILL.md",
+    "kind": "file",
+    "mode": 420
+  }
+]

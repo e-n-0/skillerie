@@ -1,0 +1,4 @@
+{
+  "notes": "${paths.docs}",
+  "nativeFile": "{file:notes.md}",
+}

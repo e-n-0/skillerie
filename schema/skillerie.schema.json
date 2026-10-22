@@ -1,0 +1,262 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/skillerie.schema.json",
+  "title": "skillerie configuration",
+  "type": "object",
+  "required": ["version"],
+  "additionalProperties": false,
+  "properties": {
+    "version": { "type": "integer", "const": 1 },
+    "dialect": { "type": "integer", "const": 1, "default": 1 },
+    "engine": { "type": "string", "minLength": 1 },
+    "starter": {
+      "default": true,
+      "oneOf": [
+        { "type": "boolean" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean", "default": true },
+            "exclude": { "$ref": "#/$defs/names" }
+          }
+        }
+      ]
+    },
+    "harnesses": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "opencode": { "$ref": "#/$defs/harness" },
+        "codex": { "$ref": "#/$defs/harness" },
+        "omo": { "$ref": "#/$defs/harness" },
+        "pi": { "$ref": "#/$defs/harness" }
+      }
+    },
+    "paths": {
+      "type": "object",
+      "additionalProperties": { "type": "string", "minLength": 1 },
+      "properties": {
+        "docs": { "type": "string", "minLength": 1 },
+        "backup": { "type": "string", "minLength": 1 },
+        "cache": { "type": "string", "minLength": 1 }
+      }
+    },
+    "sources": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "skills": { "type": "string", "minLength": 1 },
+        "agents": { "type": "string", "minLength": 1 },
+        "rules": { "type": "string", "minLength": 1 },
+        "instructions": { "type": "string", "minLength": 1 },
+        "mcp": { "type": "string", "minLength": 1 },
+        "bin": { "type": "string", "minLength": 1 },
+        "harnesses": { "type": "string", "minLength": 1 }
+      }
+    },
+    "skills": { "$ref": "#/$defs/entities" },
+    "agents": { "$ref": "#/$defs/entities" },
+    "rules": { "$ref": "#/$defs/entities" },
+    "assets": { "$ref": "#/$defs/entities" },
+    "shared": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "agentsSkillsDir": {
+          "enum": ["dedupe", "preserve"],
+          "default": "dedupe"
+        }
+      }
+    },
+    "lint": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "descriptionPrefix": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "value": { "type": "string", "default": "Use when" },
+            "severity": { "$ref": "#/$defs/severity" }
+          }
+        },
+        "structure": { "$ref": "#/$defs/lintRule" },
+        "questions": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "severity": { "$ref": "#/$defs/severity" },
+            "allowProse": {
+              "type": "array",
+              "items": { "type": "string" },
+              "default": []
+            }
+          }
+        },
+        "references": { "$ref": "#/$defs/lintRule" }
+      }
+    },
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "commit": { "type": "boolean", "default": false }
+      }
+    },
+    "hooks": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "postInstall": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "oneOf": [
+              { "type": "string", "minLength": 1 },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["command"],
+                "properties": {
+                  "command": { "type": "string", "minLength": 1 },
+                  "fatal": { "type": "boolean", "default": true }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "names": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true,
+      "default": []
+    },
+    "severity": { "enum": ["error", "warn", "info", "off"] },
+    "lintRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": { "severity": { "$ref": "#/$defs/severity" } }
+    },
+    "json": {
+      "anyOf": [
+        { "type": ["null", "boolean", "number", "string"] },
+        { "type": "array", "items": { "$ref": "#/$defs/json" } },
+        {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/json" }
+        }
+      ]
+    },
+    "jsonObject": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/json" }
+    },
+    "harness": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean", "default": true },
+        "path": { "type": "string", "minLength": 1 },
+        "assets": { "$ref": "#/$defs/names" },
+        "options": { "$ref": "#/$defs/jsonObject" },
+        "replaceAgents": {
+          "type": "object",
+          "additionalProperties": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "requires": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "bin": { "$ref": "#/$defs/stringList" },
+        "env": { "$ref": "#/$defs/stringList" },
+        "os": {
+          "oneOf": [
+            { "enum": ["darwin", "linux"] },
+            {
+              "type": "array",
+              "items": { "enum": ["darwin", "linux"] },
+              "uniqueItems": true
+            }
+          ]
+        },
+        "harness": {
+          "oneOf": [
+            { "enum": ["opencode", "codex", "omo", "pi"] },
+            {
+              "type": "array",
+              "items": { "enum": ["opencode", "codex", "omo", "pi"] },
+              "uniqueItems": true
+            }
+          ]
+        }
+      }
+    },
+    "stringList": {
+      "oneOf": [{ "type": "string", "minLength": 1 }, { "$ref": "#/$defs/names" }]
+    },
+    "override": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "argument-hint": { "type": "string" },
+        "user-invocable": { "type": "boolean" },
+        "allowed-tools": { "$ref": "#/$defs/stringList" },
+        "disable-model-invocation": { "type": "boolean" },
+        "license": { "type": "string" },
+        "compatibility": { "type": "string" },
+        "metadata": { "$ref": "#/$defs/jsonObject" },
+        "allowed_tools": { "$ref": "#/$defs/stringList" },
+        "skills": { "$ref": "#/$defs/names" },
+        "maxTurns": { "type": "integer", "minimum": 1 },
+        "readOnly": { "type": "boolean" },
+        "noShell": { "type": "boolean" },
+        "requires": { "$ref": "#/$defs/requires" },
+        "enabled": { "type": "boolean" },
+        "paths": { "$ref": "#/$defs/names" }
+      }
+    },
+    "selection": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "$ref": "#/$defs/names" },
+        "disabled": { "$ref": "#/$defs/names" },
+        "overrides": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/override" }
+        }
+      }
+    },
+    "entities": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "$ref": "#/$defs/names" },
+        "disabled": { "$ref": "#/$defs/names" },
+        "overrides": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/override" }
+        },
+        "harnesses": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "opencode": { "$ref": "#/$defs/selection" },
+            "codex": { "$ref": "#/$defs/selection" },
+            "omo": { "$ref": "#/$defs/selection" },
+            "pi": { "$ref": "#/$defs/selection" }
+          }
+        }
+      }
+    }
+  }
+}

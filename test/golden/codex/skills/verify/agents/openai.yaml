@@ -1,0 +1,4 @@
+interface:
+  display_name: Verify
+  short_description: Use when a completed change needs focused verification.
+  default_prompt: Use $verify to a completed change needs focused verification

@@ -1,0 +1,4 @@
+interface:
+  display_name: Implement
+  short_description: Use when an approved plan is ready to implement.
+  default_prompt: Use $implement to an approved plan is ready to implement

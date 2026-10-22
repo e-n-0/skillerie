@@ -1,0 +1,5 @@
+{
+  // Values expand without changing native harness placeholders.
+  "instructions": ["${paths.docs}/instructions.md"],
+  "provider": {},
+}

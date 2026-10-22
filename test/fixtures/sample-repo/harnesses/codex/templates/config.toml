@@ -1,0 +1,2 @@
+model = "example-model"
+instructions = "${paths.docs}/instructions.md"

@@ -1,0 +1,22 @@
+version: 1
+dialect: 1
+starter: false
+harnesses:
+  opencode:
+    enabled: true
+  codex:
+    enabled: true
+  omo:
+    enabled: true
+  pi:
+    enabled: true
+paths:
+  docs: "${repo}/docs"
+lint:
+  descriptionPrefix:
+    value: Use when
+    severity: error
+  structure:
+    severity: error
+generated:
+  commit: true

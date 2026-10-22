@@ -1,0 +1,11 @@
+model = "example-model"
+instructions = "/home/alice/config/docs/instructions.md"
+
+[mcp_servers.docs]
+default_tools_approval_mode = "auto"
+url = "https://docs.example.com/mcp"
+
+[mcp_servers.tracker]
+default_tools_approval_mode = "auto"
+command = "sh"
+args = [ "/home/alice/config/bin/tracker.sh" ]

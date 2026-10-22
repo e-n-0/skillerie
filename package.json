@@ -1,0 +1,50 @@
+{
+  "name": "skillerie",
+  "version": "0.0.0",
+  "description": "Build shared coding-agent configuration for multiple harnesses.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": {
+    "skillerie": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "schema",
+    "starter",
+    "README.md",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/e-n-0/skillerie"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . && prettier --check .",
+    "test": "vitest run",
+    "format": "prettier --write .",
+    "smoke": "bash scripts/smoke.sh"
+  },
+  "dependencies": {
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
+    "commander": "^14.0.3",
+    "jsonc-parser": "^3.3.1",
+    "smol-toml": "^1.4.2",
+    "yaml": "^2.8.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@types/node": "^22.20.5",
+    "eslint": "^9.39.5",
+    "prettier": "^3.9.10",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.72.0",
+    "vitest": "^4.1.12"
+  }
+}

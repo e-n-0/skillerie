@@ -1,0 +1,4 @@
+{
+  "theme": "example",
+  "notes": "${paths.docs}"
+}

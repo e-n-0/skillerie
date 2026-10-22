@@ -1,0 +1,4 @@
+interface:
+  display_name: Outline
+  short_description: Use when a change needs a concrete implementation plan.
+  default_prompt: Use $outline to a change needs a concrete implementation plan

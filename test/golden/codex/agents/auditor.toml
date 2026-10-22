@@ -1,0 +1,3 @@
+name = "auditor"
+description = "Reviews a proposed change for correctness and missing tests."
+developer_instructions = "\nRead the affected sources and tests. Report concrete findings with their\nlocations. Use `/verify` to reproduce an uncertain result.\n"

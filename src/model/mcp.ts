@@ -1,0 +1,127 @@
+import { Ajv } from "ajv";
+import type { Diagnostic, McpConfig, McpServer } from "../core/types.js";
+import { isJsonObject } from "./json.js";
+import { harnessIds, validateFields } from "./schema.js";
+
+const server = {
+  type: "object",
+  properties: {
+    command: { type: "string" },
+    args: { type: "array", items: { type: "string" } },
+    url: { type: "string" },
+    env: { type: "object", additionalProperties: { type: "string" } },
+    headers: { type: "object", additionalProperties: { type: "string" } },
+  },
+} as const;
+const validateMcp = new Ajv({ allErrors: true, ownProperties: true }).compile<
+  Omit<McpConfig, "file">
+>({
+  type: "object",
+  properties: {
+    mcpServers: { type: "object", additionalProperties: server },
+    harnessOverrides: {
+      type: "object",
+      additionalProperties: false,
+      properties: Object.fromEntries(
+        harnessIds.map((harness) => [
+          harness,
+          {
+            type: "object",
+            additionalProperties: { anyOf: [server, { type: "null" }] },
+          },
+        ]),
+      ),
+    },
+    settings: { type: "object" },
+  },
+  required: ["mcpServers", "harnessOverrides", "settings"],
+  additionalProperties: false,
+});
+
+export function readMcp(
+  text: string,
+  file: string,
+): { readonly mcp?: McpConfig; readonly diagnostics: readonly Diagnostic[] } {
+  let data: unknown;
+  try {
+    data = JSON.parse(text);
+  } catch (error) {
+    if (!(error instanceof SyntaxError)) throw error;
+    const match = /position (\d+)/.exec(error.message);
+    return {
+      diagnostics: [
+        {
+          severity: "error",
+          code: "source.json",
+          message: error.message,
+          file,
+          line: match?.[1] ? text.slice(0, Number(match[1])).split("\n").length : 1,
+        },
+      ],
+    };
+  }
+  if (!isJsonObject(data))
+    return {
+      diagnostics: [
+        {
+          severity: "error",
+          code: "mcp.mapping",
+          message: "MCP configuration must be a JSON object.",
+          file,
+          jsonPath: "",
+        },
+      ],
+    };
+  const result = validateFields(
+    validateMcp,
+    {
+      mcpServers: {},
+      harnessOverrides: {},
+      settings: {},
+      ...data,
+    },
+    file,
+  );
+  return {
+    ...(result.value ? { mcp: { ...result.value, file } } : {}),
+    diagnostics: result.diagnostics,
+  };
+}
+
+export function mergeMcp(
+  starter: McpConfig | undefined,
+  user: McpConfig | undefined,
+): McpConfig | undefined {
+  if (!starter) return user;
+  if (!user) return starter;
+  return {
+    file: user.file,
+    mcpServers: { ...starter.mcpServers, ...user.mcpServers },
+    harnessOverrides: Object.fromEntries(
+      harnessIds.map((harness) => [
+        harness,
+        { ...starter.harnessOverrides[harness], ...user.harnessOverrides[harness] },
+      ]),
+    ),
+    settings: { ...starter.settings, ...user.settings },
+  };
+}
+
+/** A null per-harness override removes the complete server, never a nested field. */
+export function resolveMcpServers(
+  mcp: McpConfig,
+  harness: (typeof harnessIds)[number],
+): Readonly<Record<string, McpServer>> {
+  const servers: Record<string, McpServer> = { ...mcp.mcpServers };
+  for (const [name, override] of Object.entries(mcp.harnessOverrides[harness] ?? {})) {
+    if (override === null) delete servers[name];
+    else
+      Object.defineProperty(servers, name, {
+        value: override,
+        enumerable: true,
+        configurable: true,
+        writable: true,
+      });
+  }
+  return servers;
+}

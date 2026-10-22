@@ -1,0 +1,3 @@
+name = "builder"
+description = "Implements a focused plan and verifies the changed behavior."
+developer_instructions = "\nRead the approved plan. Use `/implement` for the change and `/verify` for the\nchecks. Return the outcome and any unresolved blocker.\n"

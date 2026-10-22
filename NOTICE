@@ -1,0 +1,25 @@
+skillerie
+Copyright 2026 The skillerie authors
+
+Third-party components
+
+The starter set in starter/ includes the following third-party skills. The
+original license file is kept beside each skill.
+
+gh-fix-ci (starter/skills/gh-fix-ci)
+  License: Apache License 2.0; see starter/skills/gh-fix-ci/LICENSE.txt.
+  Changes: modified for skillerie (harness-specific metadata and icon assets
+  removed, workflow generalized).
+  Copyright: LICENSE.txt carries no copyright line (its appendix placeholder
+  is unfilled).
+
+security-best-practices (starter/skills/security-best-practices)
+  License: Apache License 2.0; see
+  starter/skills/security-best-practices/LICENSE.txt.
+  Changes: modified for skillerie (harness-specific prompt metadata removed).
+  Copyright: LICENSE.txt carries no copyright line (its appendix placeholder
+  is unfilled).
+
+humanizer (starter/skills/humanizer)
+  License: MIT License; see starter/skills/humanizer/LICENSE.
+  Copyright (c) 2025 Siqi Chen
