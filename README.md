@@ -1,104 +1,102 @@
-# skillerie
+<p align="center">
+  <img src="docs/assets/logo.svg" width="120" height="120" alt="skillerie logo">
+</p>
 
-skillerie turns one configuration repository into the skills, agents, rules, instructions, and MCP servers of four AI coding harnesses: OpenCode, Codex, OMO, and Pi. You write each skill and agent once in a shared Markdown dialect. skillerie validates the sources, renders a native copy for every enabled harness, and installs it into each harness home with symlinks, managed config blocks, and backups of anything it replaces.
+<h1 align="center">skillerie</h1>
 
-## Status
+<p align="center">
+  <b>Write your agent skills once. Install them in every coding agent.</b>
+</p>
 
-skillerie is pre-1.0. The configuration format (`version: 1`) and the authoring dialect (`dialect: 1`) are versioned, but minor releases may still change behavior before 1.0. It runs on macOS and Linux with Node 22 or newer. Windows isn't supported.
+<p align="center">
+  <a href="https://www.npmjs.com/package/skillerie"><img alt="npm" src="https://img.shields.io/npm/v/skillerie?style=flat-square"></a>
+  <a href="https://github.com/e-n-0/skillerie/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/e-n-0/skillerie/ci.yml?branch=main&style=flat-square"></a>
+  <a href="https://github.com/e-n-0/skillerie/blob/main/package.json"><img alt="Node" src="https://img.shields.io/node/v/skillerie?style=flat-square"></a>
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/e-n-0/skillerie?style=flat-square"></a>
+</p>
+
+<p align="center">
+  <a href="#quickstart">Quickstart</a> ·
+  <a href="#set-up-with-your-coding-agent">Set up with your agent</a> ·
+  <a href="docs/config.md">Docs</a>
+</p>
+
+skillerie turns one git repository of skills, agents, rules, instructions and MCP servers into native configuration for [OpenCode](https://opencode.ai), [Codex](https://github.com/openai/codex), [OMO](https://github.com/code-yeongyu/oh-my-openagent) and [Pi](https://pi.dev), and keeps them all in sync.
+
+```mermaid
+flowchart LR
+  repo["Your config repo<br/>skills · agents · rules · MCP"] --> skillerie((skillerie))
+  skillerie --> OpenCode
+  skillerie --> Codex
+  skillerie --> OMO
+  skillerie --> Pi
+```
+
+## Why skillerie
+
+- **One source of truth.** Write a skill once in plain Markdown. skillerie translates tool names, question tools, sub-agents and skill references into what each harness understands.
+- **Reuse community skills.** Load skills straight from GitHub, pinned to a tag or commit, and run `skillerie outdated` to see when upstream moves.
+- **Safe by default.** Dry-run every install, back up anything replaced, keep your manual edits, and undo it all with `skillerie uninstall`.
+- **Checked before it ships.** `validate` catches broken references and invalid frontmatter, and `doctor` has Codex and OpenCode check the config skillerie renders for them.
 
 ## Quickstart
 
+Requires Node 22 or newer on macOS or Linux.
+
 ```sh
-npx skillerie init my-config
-cd my-config
-npx skillerie validate
-npx skillerie install --check
+npx skillerie init my-agents     # enables the harnesses found on your PATH
+cd my-agents
+npx skillerie install --check    # show the plan, write nothing
 npx skillerie install
 ```
 
-`init` detects which harness CLIs are on your `PATH` and enables those. Pass `--harness opencode codex` to pick them yourself. It writes a `package.json` that pins skillerie to the current minor version, so `npm install` gives you a local copy and editor completion for `skillerie.yaml`.
-
-`install --check` prints the plan without writing anything. It exits with status 1 while there is still work to do, so a nonzero exit before your first install is expected. `install` then renders a fresh generation and applies the plan.
-
-## Concepts
-
-<!-- prettier-ignore -->
-| Concept | Source in your repository | What skillerie produces |
-|-|-|-|
-| Skill | `skills/<name>/SKILL.md` plus support files | A skill directory per harness. OpenCode also gets a slash command when `user-invocable: true`. Codex also gets `agents/openai.yaml`. |
-| Agent | `agents/<name>.md` | OpenCode Markdown agent, Codex TOML agent, OMO entry under `[native].agents`, Pi Markdown agent |
-| Instructions | `instructions.md` | The global `AGENTS.md` of each harness |
-| Rule | `rules/<name>.md` | OpenCode `rules/` files; appended to `AGENTS.md` for Codex, OMO, and Pi |
-| MCP server | `mcp.json` | The MCP configuration of each harness |
-| Harness template | `harnesses/<harness>/templates/` | Native settings files merged with generated content |
-| Asset | `harnesses/<harness>/assets/<name>` | Automatically selected for its harness; use `assets` entity selection to exclude it |
-| Seed | `harnesses/<harness>/seeds/` | Copied once if missing, then owned by you |
-| Harness-scoped entity | `harnesses/<harness>/skills/`, `harnesses/<harness>/agents/` | A skill or agent rendered for that harness only |
-| Post-install hook | `hooks.postInstall` in `skillerie.yaml` | Shell commands run after a successful install |
-
-## Commands
-
-<!-- prettier-ignore -->
-| Command | What it does |
-|-|-|
-| `skillerie init [dir]` | Scaffold a configuration repository |
-| `skillerie validate` | Check `skillerie.yaml`, frontmatter, references, and lint rules |
-| `skillerie sync` | Render every enabled harness into a new generation; `--check` compares against the current one |
-| `skillerie install` | Render, activate the generation, and install it; `--check` is a dry run |
-| `skillerie status` | Report ownership of each harness home and any drift |
-| `skillerie outdated` | Compare external skills with upstream tags, branches, or the default branch |
-| `skillerie uninstall` | Remove managed links and restore merged files |
-| `skillerie doctor` | Check Node, harness CLIs and versions, rendered configs, required binaries, and writable homes |
-
-Every command accepts `--repo <dir>` (default: the current directory) and the global `--json` flag. See [docs/install.md](docs/install.md) for flags and exit codes.
-
-## Configuration
-
-`skillerie.yaml` sits at the root of your repository. A small one looks like this:
+Add skills under `skills/<name>/SKILL.md`, or pull them from GitHub:
 
 ```yaml
-version: 1
-harnesses:
-  opencode:
-    enabled: true
-  codex:
-    enabled: true
+# skillerie.yaml
 skills:
-  disabled: [legacy-deploy]
-  overrides:
-    release:
-      requires: { bin: gh }
+  external:
+    - url: https://github.com/openai/skills/tree/main/skills/.curated/gh-fix-ci
 ```
 
-[docs/config.md](docs/config.md) covers every key with its type, default, and an example. The JSON Schema ships in the package at `schema/skillerie.schema.json`.
+Run `npx skillerie install` again after every change.
 
-## Safety model
+## Set up with your coding agent
 
-skillerie only writes to a harness home during `install` and `uninstall`, and it keeps enough state to undo its changes.
+Paste this into Claude Code, Codex, OpenCode or any other coding agent:
 
-- Manifest: each harness home gets `.skillerie/manifest.json`, which records the owning repository, every managed path with its fingerprint, and the original content of every file it replaced or merged into. A second repository can't install into the same home without `--takeover`.
-- Backups: before any existing file, link, or directory is replaced or removed, it is moved under `paths.backup` (default `~/.Trash/skillerie`). Nothing is deleted without a backup.
-- User edits: if you edit a managed file, `install` and `uninstall` leave it alone and report `USER-EDIT`. `install --force` backs it up and replaces it.
-- Dry run: `install --check` plans without changing harness homes or taking a lock. External resolution may populate its cache.
-- Atomic generations: rendered output lives in a cache directory. Installed links point through a stable `current` symlink that is swapped atomically, and the previous generation is kept.
-- Journal and lock: each install takes a lock in the harness home and writes a journal before changing anything, so an interrupted install is finished on the next run.
-- Uninstall: `uninstall` removes managed links, restores merged blocks and replaced files from the manifest, and leaves seeds and edited files in place.
+```text
+Set up skillerie for me by following
+https://raw.githubusercontent.com/e-n-0/skillerie/main/docs/agent-setup.md
+Bring in the skills and agents I already have, show me the install plan,
+and ask me before installing anything.
+```
 
-[docs/install.md](docs/install.md) describes the install model in detail.
+Agents can also start from [`llms.txt`](llms.txt), an index of the documentation.
+
+## Supported harnesses
+
+Each harness gets skills, agents, rules, instructions and MCP servers in its own native format, merged with your harness settings.
+
+<!-- prettier-ignore -->
+| Harness | Installs into | Notes |
+|-|-|-|
+| [OpenCode](https://opencode.ai) | `~/.config/opencode` | [docs/harnesses/opencode.md](docs/harnesses/opencode.md) |
+| [Codex](https://github.com/openai/codex) | `~/.codex` | [docs/harnesses/codex.md](docs/harnesses/codex.md) |
+| [OMO](https://github.com/code-yeongyu/oh-my-openagent) | `~/.omo` | [docs/harnesses/omo.md](docs/harnesses/omo.md) |
+| [Pi](https://pi.dev) | `~/.pi/agent` | [docs/harnesses/pi.md](docs/harnesses/pi.md) |
 
 ## Documentation
 
-- [Configuration reference](docs/config.md)
-- [Authoring skills and agents](docs/authoring.md)
-- [Install, status, and uninstall](docs/install.md)
-- Harness notes: [OpenCode](docs/harnesses/opencode.md), [Codex](docs/harnesses/codex.md), [OMO](docs/harnesses/omo.md), [Pi](docs/harnesses/pi.md)
-- [Writing an adapter](docs/adapters.md)
-- [Engine architecture](docs/architecture.md)
+- [Configuration](docs/config.md): every `skillerie.yaml` key, external skills, MCP servers
+- [Authoring](docs/authoring.md): the shared Markdown dialect and how each harness translates it
+- [Install and safety model](docs/install.md): commands, backups, ownership, uninstall
+- [Agent setup guide](docs/agent-setup.md): how a coding agent sets skillerie up for you
+
+skillerie is pre-1.0: the config format is versioned, but minor releases may still change behavior.
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). Report security issues as described in [SECURITY.md](SECURITY.md).
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md), and report security issues as described in [SECURITY.md](SECURITY.md).
 
-## License
-
-Apache-2.0. See [LICENSE](LICENSE).
+Licensed under [Apache-2.0](LICENSE).
