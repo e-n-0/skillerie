@@ -147,6 +147,7 @@ it.each(["skills", "agents", "rules", "assets"] as const)(
 
     // Then: selection defaults are applied without losing the disabled list.
     expect(result.config?.[kind]).toEqual({
+      ...(kind === "skills" ? { external: [] } : {}),
       enabled: [],
       disabled: [],
       overrides: {},

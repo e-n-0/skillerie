@@ -27,6 +27,11 @@ export async function lintJsonSources(model: SourceModel): Promise<readonly Diag
     else files.add(asset.sourcePath);
   }
   const diagnostics: Diagnostic[] = [];
+  const externalFiles = new Set(
+    model.skills
+      .filter((skill) => skill.external)
+      .flatMap((skill) => skill.supportFiles.map((file) => file.sourcePath)),
+  );
   for (const file of [...files].sort()) {
     const extension = extname(file);
     if (extension !== ".json" && extension !== ".jsonc") continue;
@@ -38,7 +43,7 @@ export async function lintJsonSources(model: SourceModel): Promise<readonly Diag
     });
     diagnostics.push(
       ...errors.map((error) => ({
-        severity: "error" as const,
+        severity: externalFiles.has(file) ? ("warn" as const) : ("error" as const),
         code: "source.json",
         message: printParseErrorCode(error.error),
         file,

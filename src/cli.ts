@@ -5,7 +5,7 @@ import { existsSync, realpathSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Diagnostic } from "./core/types.js";
-import { hasErrors, runLifecycle, syncRepo, validateRepo } from "./engine/index.js";
+import { hasErrors, outdatedRepo, runLifecycle, syncRepo, validateRepo } from "./engine/index.js";
 import type { EngineOptions } from "./engine/index.js";
 import { isHarness } from "./engine/render.js";
 import { ENGINE_VERSION } from "./version.js";
@@ -99,6 +99,22 @@ export async function runCli(
       }
     });
 
+  program
+    .command("outdated")
+    .description("Compare external skills with their upstream repositories")
+    .option("--repo <dir>", "Source repository", process.cwd())
+    .action(async (_options: unknown, command: Command) => {
+      const options = command.optsWithGlobals<{ readonly repo: string; readonly json?: boolean }>();
+      const result = await outdatedRepo(options.repo, dependencies);
+      exitCode = result.exitCode;
+      if (options.json) stdout(`${JSON.stringify(result)}\n`);
+      else {
+        for (const entry of result.entries)
+          stdout(`${entry.url} ${entry.ref ?? "latest"} ${entry.message}\n`);
+        for (const diagnostic of result.diagnostics) stderr(`${formatDiagnostic(diagnostic)}\n`);
+      }
+    });
+
   for (const [name, description] of [
     ["install", "Install the current generation"],
     ["uninstall", "Remove managed installations and restore merged content"],
@@ -159,6 +175,10 @@ export async function runCli(
         }
         for (const difference of result.drift ?? [])
           stdout(`DRIFT ${difference.reason} ${difference.relPath}\n`);
+        for (const entry of result.external ?? [])
+          stdout(
+            `EXTERNAL ${entry.url} ${entry.ref ?? "latest"} ${entry.sha.slice(0, 8)}${entry.path ? ` ${entry.path}` : ""}\n`,
+          );
       }
     });
   }
@@ -203,7 +223,7 @@ export async function runCli(
     if (argv.includes("--json"))
       stdout(`${JSON.stringify({ valid: false, diagnostics: [diagnostic] })}\n`);
     else stderr(`${formatDiagnostic(diagnostic)}\n`);
-    return 1;
+    return program.args[0] === "outdated" ? 2 : 1;
   }
   return exitCode;
 }

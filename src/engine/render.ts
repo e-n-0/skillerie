@@ -10,6 +10,7 @@ import type {
   ResolvedContext,
   SourceModel,
 } from "../core/types.js";
+import { externalDiagnostics, skillDiagnosticSources } from "./diagnostics.js";
 
 /** Relocate adapter defaults while honoring the configured runtime root. */
 function pathsFor(adapter: Adapter, snapshot: InputSnapshot, env: Environment): HarnessPaths {
@@ -79,7 +80,10 @@ export async function renderHarness(adapter: Adapter, input: RenderInput) {
     seen.add(file.relPath);
     files.push({ ...file, relPath: `${adapter.id}/${file.relPath}` });
   }
-  return { files, diagnostics };
+  return {
+    files,
+    diagnostics: externalDiagnostics(diagnostics, skillDiagnosticSources(input.model)),
+  };
 }
 
 export function restrictionDiagnostics(

@@ -1,5 +1,6 @@
 import type { AgentFrontmatter, SkillFrontmatter } from "./entities.js";
 import type { HarnessMap, JsonObject } from "./primitives.js";
+import type { ExternalSkillInput } from "./external.js";
 
 /** Entity configuration fields applied before authored frontmatter. */
 export interface EntityOverride extends Partial<SkillFrontmatter>, Partial<AgentFrontmatter> {
@@ -17,6 +18,10 @@ export interface EntitySelection {
 /** Global selection plus per-harness selection/override layers. */
 export interface EntitySettings extends EntitySelection {
   readonly harnesses: HarnessMap<EntitySelection>;
+}
+
+export interface SkillSettings extends EntitySettings {
+  readonly external?: readonly ExternalSkillInput[];
 }
 
 /** Normalized harness settings. */
@@ -59,7 +64,7 @@ export interface ResolvedConfig {
   readonly dialect: 1;
   readonly harnesses: HarnessMap<ResolvedHarnessConfig>;
   readonly paths: ResolvedPaths;
-  readonly skills: EntitySettings;
+  readonly skills: SkillSettings;
   readonly agents: EntitySettings;
   readonly rules: EntitySettings;
   readonly assets: EntitySettings;

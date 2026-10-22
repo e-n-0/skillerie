@@ -1,10 +1,16 @@
-import type { Diagnostic, ResolvedConfig, SourceModel } from "../core/types.js";
+import type {
+  Diagnostic,
+  ResolvedConfig,
+  ResolvedExternalSkill,
+  SourceModel,
+} from "../core/types.js";
 import { defaultSourcePaths, type ResolvedSourcePaths } from "../config/sources.js";
 import { lstat } from "node:fs/promises";
 import { resolve } from "node:path";
 import { captureFiles } from "./files.js";
 import { readLayer } from "./layer.js";
 import { resolveEntities } from "./merge.js";
+import { readExternalSkills } from "./external.js";
 
 export { parseFrontmatter } from "./frontmatter.js";
 export { evaluateRequires, type RequiresContext } from "./requires.js";
@@ -23,6 +29,7 @@ export interface DiscoverSourcesResult {
 export async function discoverSources(
   repoDir: string,
   config: DiscoveryConfig,
+  external: readonly ResolvedExternalSkill[] = [],
 ): Promise<DiscoverSourcesResult> {
   const diagnostics: Diagnostic[] = [];
   const root = resolve(repoDir);
@@ -61,9 +68,12 @@ export async function discoverSources(
     },
     diagnostics,
   );
+  const imported = await readExternalSkills(external, config, user.skills);
+  diagnostics.push(...imported.diagnostics);
   const model: SourceModel = {
     repoDir: root,
-    ...resolveEntities(user, config),
+    ...(external.length ? { external: external.map((entry) => entry.revision) } : {}),
+    ...resolveEntities({ ...user, skills: [...user.skills, ...imported.skills] }, config),
     templates: user.templates,
     seeds: user.seeds,
     bin: user.bin,
@@ -71,6 +81,6 @@ export async function discoverSources(
     ...(user.mcp ? { mcp: user.mcp } : {}),
   };
   if (diagnostics.some((diagnostic) => diagnostic.severity === "error")) return { diagnostics };
-  captureFiles(model, user.files);
+  captureFiles(model, new Map([...user.files, ...imported.files]));
   return { model, diagnostics };
 }

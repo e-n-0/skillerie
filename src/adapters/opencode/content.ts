@@ -1,8 +1,8 @@
 import { readFile } from "node:fs/promises";
-import { relative, sep } from "node:path";
 import { stringify } from "yaml";
 import type { Agent, Diagnostic, JsonObject, RenderedFile, Skill } from "../../core/types.js";
 import { capDescription } from "../../model/schema.js";
+import { externalOrigin, skillDirectory } from "../../model/external.js";
 import { capabilities, permissionNames } from "./capabilities.js";
 import { convertText } from "./text.js";
 
@@ -23,7 +23,7 @@ export async function renderSkill(
   readonly files: readonly RenderedFile[];
   readonly diagnostics: readonly Diagnostic[];
 }> {
-  const skillDir = relative(repoDir, skill.dir).split(sep).join("/");
+  const skillDir = skillDirectory(skill, repoDir);
   const source = { file: skill.file, skillDir };
   const converted = convertText(skill.body, source);
   const diagnostics: Diagnostic[] = [...converted.diagnostics];
@@ -36,6 +36,9 @@ export async function renderSkill(
   };
   const guidance = [
     generatedNotice,
+    ...(skill.external
+      ? [`<!-- Source: ${externalOrigin(skill)?.replaceAll("--", "&#45;&#45;")}/SKILL.md -->`]
+      : []),
     "Resolve support paths from the base directory returned by the skill tool. Run project commands from the working repository, not the installed skill directory.",
     "Treat $ARGUMENTS as the invocation context supplied by the caller. If none was supplied, use the current request.",
     ...(fields["disable-model-invocation"]
@@ -63,7 +66,7 @@ export async function renderSkill(
     }
     files.push(file(`skills/${skill.name}/${support.relPath}`, content, support.mode));
   }
-  if (fields["user-invocable"] === true)
+  if (fields["user-invocable"] !== false)
     files.push(
       file(
         `commands/${skill.name}.md`,

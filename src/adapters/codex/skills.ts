@@ -1,8 +1,8 @@
 import { readFile } from "node:fs/promises";
-import { relative } from "node:path";
 import { stringify } from "yaml";
 import type { Diagnostic, RenderedFile, Skill } from "../../core/types.js";
 import { convertText } from "./dialect.js";
+import { externalOrigin, skillDirectory } from "../../model/external.js";
 
 export function skillInterface(skill: Skill): string {
   const description = skill.frontmatter.description;
@@ -36,7 +36,7 @@ export async function renderSkill(
   readonly files: readonly RenderedFile[];
   readonly diagnostics: readonly Diagnostic[];
 }> {
-  const context = { file: skill.file, skillDir: relative(repoDir, skill.dir) };
+  const context = { file: skill.file, skillDir: skillDirectory(skill, repoDir) };
   const body = convertText(skill.body, context);
   const diagnostics = [...body.diagnostics];
   const root = `skills/${skill.name}`;
@@ -44,7 +44,7 @@ export async function renderSkill(
     {
       kind: "file",
       relPath: `${root}/SKILL.md`,
-      content: `---\nname: ${JSON.stringify(skill.name)}\ndescription: ${JSON.stringify(skill.frontmatter.description)}\n---\n${body.text}`,
+      content: `---\nname: ${JSON.stringify(skill.name)}\ndescription: ${JSON.stringify(skill.frontmatter.description)}\n---\n${skill.external ? `<!-- Source: ${externalOrigin(skill)?.replaceAll("--", "&#45;&#45;")}/SKILL.md -->\n` : ""}${body.text}`,
       mode: 0o644,
     },
     {

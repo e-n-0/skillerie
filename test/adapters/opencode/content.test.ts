@@ -63,7 +63,7 @@ it("reduces skill metadata when rendering a canonical skill", async () => {
   expect(result.diagnostics).toEqual([]);
 });
 
-it("emits commands only when skills are explicitly user-invocable", async () => {
+it("emits commands when skills are explicitly user-invocable", async () => {
   // Given: a skill with explicit command eligibility.
   const base = sampleSkill();
   const skill = { ...base, frontmatter: { ...base.frontmatter, "user-invocable": true } };
@@ -87,6 +87,16 @@ it("omits commands when user invocation is false", async () => {
   const result = await renderSkill(skill, sample.repo);
   // Then: no command is installed for that skill.
   expect(result.files.filter((entry) => entry.relPath.startsWith("commands/"))).toEqual([]);
+});
+
+it("emits a command when user invocation is omitted", async () => {
+  // Given: a skill without invocation metadata.
+  const base = sampleSkill();
+  const { "user-invocable": _invocable, ...frontmatter } = base.frontmatter;
+  // When: rendering the skill with its default invocation policy.
+  const result = await renderSkill({ ...base, frontmatter }, sample.repo);
+  // Then: users can invoke the skill through its native command.
+  expect(result.files.some((entry) => entry.relPath === `commands/${base.name}.md`)).toBe(true);
 });
 
 it("rewrites support Markdown but preserves binary bytes and executable bits", async () => {

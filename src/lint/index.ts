@@ -197,5 +197,12 @@ export function lintModel(model: SourceModel, config: ResolvedConfig): readonly 
     }
   }
 
-  return diagnostics;
+  const externalFiles = new Set(
+    model.skills.filter((skill) => skill.external).map((skill) => skill.file),
+  );
+  return diagnostics.map((diagnostic) =>
+    diagnostic.severity === "error" && diagnostic.file && externalFiles.has(diagnostic.file)
+      ? { ...diagnostic, severity: "warn" }
+      : diagnostic,
+  );
 }

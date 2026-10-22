@@ -35,7 +35,7 @@ it("applies normalized defaults when the config contains only its version", asyn
         bin: join(repo, "bin"),
         harnesses: join(repo, "harnesses"),
       },
-      skills: selection,
+      skills: { ...selection, external: [] },
       agents: selection,
       rules: selection,
       assets: selection,

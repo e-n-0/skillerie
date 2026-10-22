@@ -1,4 +1,4 @@
-import type { Action, Diagnostic, HarnessId, JsonValue } from "../core/types.js";
+import type { Action, Diagnostic, ExternalRevision, HarnessId, JsonValue } from "../core/types.js";
 
 export interface RepoIdentity {
   readonly path: string;
@@ -6,6 +6,7 @@ export interface RepoIdentity {
 }
 
 export interface InstallOptions {
+  readonly external?: readonly ExternalRevision[];
   readonly repo: RepoIdentity;
   readonly harness: HarnessId;
   readonly harnessHome: string;
@@ -48,6 +49,7 @@ export interface ManagedEntry {
 }
 
 export interface Manifest {
+  readonly external?: readonly ExternalRevision[];
   readonly version: 1;
   readonly repo: RepoIdentity;
   readonly harness: HarnessId;

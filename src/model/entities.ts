@@ -39,6 +39,10 @@ export interface EntityInventory {
 export interface EntityInput {
   readonly source: EntitySource;
   readonly harness?: HarnessId;
+  /** Restrict external discovery to selected immediate skill roots. */
+  readonly skillRoots?: readonly string[];
+  /** A single external skill can live at a repository root named by its commit. */
+  readonly namedRoot?: string;
   readonly diagnostics: Diagnostic[];
 }
 
@@ -87,7 +91,7 @@ export function readSkills(files: readonly SourceFile[], input: EntityInput): re
     .map((file) => dirname(file.sourcePath));
   for (const file of files.filter((entry) => basename(entry.sourcePath) === "SKILL.md")) {
     const dir = dirname(file.sourcePath);
-    const name = basename(dir);
+    if (input.skillRoots && !input.skillRoots.includes(dir)) continue;
     const parsed = parseFrontmatter(file.content.toString("utf8"), file.sourcePath);
     input.diagnostics.push(...parsed.diagnostics);
     if (!parsed.frontmatter) {
@@ -104,6 +108,7 @@ export function readSkills(files: readonly SourceFile[], input: EntityInput): re
     const result = validateFields(skillSchema, parsed.frontmatter, file.sourcePath);
     input.diagnostics.push(...result.diagnostics);
     const frontmatter = result.value;
+    const name = input.namedRoot === dir ? (frontmatter?.name ?? basename(dir)) : basename(dir);
     if (
       !frontmatter ||
       !validName(name, file.sourcePath, input.diagnostics) ||

@@ -73,6 +73,7 @@ export async function buildSnapshot(
   });
   const payload = structuredClone({
     config,
+    ...(model.external?.length ? { external: model.external } : {}),
     sourceHashes,
     requires: sortedRequires,
     engineVersion,

@@ -21,6 +21,7 @@ export interface Diagnostic {
   readonly severity: "error" | "warn" | "info";
   readonly code: string;
   readonly message: string;
+  /** Absolute local path or external origin URL@shortSHA/repository-path. */
   readonly file?: string;
   /** RFC 6901 JSON Pointer into the parsed document. */
   readonly jsonPath?: string;

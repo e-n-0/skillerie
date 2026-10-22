@@ -37,7 +37,7 @@ const ajv = new Ajv({ allErrors: true, ownProperties: true });
 export const skillSchema = ajv.compile<SkillFrontmatter>({
   type: "object",
   additionalProperties: false,
-  required: ["name", "description", "argument-hint", "user-invocable"],
+  required: ["name", "description"],
   properties: {
     ...common,
     "argument-hint": text,

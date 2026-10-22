@@ -14,6 +14,7 @@ import { contextFor, renderHarness } from "./render.js";
 import { HARNESS_IDS, hasErrors } from "./types.js";
 import { uninstallRepo } from "./uninstall-repo.js";
 import { validateRepo } from "./validation.js";
+import { externalStateFiles, installedExternals } from "./external/state.js";
 
 export type * from "./lifecycle-types.js";
 
@@ -25,7 +26,11 @@ interface PreparedInstallation {
 
 async function manageRepo(repoDir: string, options: LifecycleOptions): Promise<LifecycleResult> {
   const env = { ...(options.env ?? process.env) };
-  const validated = await validateRepo(repoDir, { ...options, env });
+  const validated = await validateRepo(repoDir, {
+    ...options,
+    env,
+    ...(options.command === "doctor" ? { offlineExternal: true } : {}),
+  });
   const diagnostics = [...validated.diagnostics];
   const { snapshot, model } = validated;
   const installations: InstallationResult[] = [];
@@ -51,7 +56,7 @@ async function manageRepo(repoDir: string, options: LifecycleOptions): Promise<L
     return { valid: false, diagnostics, installations };
   }
   const root = join(snapshot.config.paths.cache, "current");
-  const files: RenderedFile[] = [];
+  const files: RenderedFile[] = [...externalStateFiles(snapshot)];
   const selected: InstallOptions[] = [];
   for (const harness of HARNESS_IDS) {
     if (!snapshot.config.harnesses[harness]?.enabled) continue;
@@ -74,6 +79,7 @@ async function manageRepo(repoDir: string, options: LifecycleOptions): Promise<L
     if (!options.harness || harness === options.harness)
       selected.push(
         installOptions({
+          ...(snapshot.external?.length ? { external: snapshot.external } : {}),
           config: snapshot.config,
           harness,
           actions: adapter.targets(contextFor(adapter, input), root),
@@ -118,7 +124,25 @@ async function manageRepo(repoDir: string, options: LifecycleOptions): Promise<L
       !userEdits &&
       drift.length === 0 &&
       prepared.every((item) => item.manifest && item.plan.actions.length === 0);
-    return { valid: clean, clean, drift, diagnostics, installations };
+    const installed = await installedExternals(snapshot.config);
+    return {
+      valid: clean,
+      clean,
+      drift,
+      diagnostics,
+      installations,
+      ...(snapshot.external?.length
+        ? {
+            external: snapshot.external.map(
+              (entry) =>
+                installed.find(
+                  (prior) =>
+                    prior.url === entry.url && prior.ref === entry.ref && prior.path === entry.path,
+                ) ?? entry,
+            ),
+          }
+        : {}),
+    };
   }
   if (options.check) {
     const drift = await generationDrift({ root, files });

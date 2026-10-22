@@ -1,7 +1,8 @@
 import type { HarnessId, HarnessMap, JsonObject, Requires } from "./primitives.js";
+import type { ExternalRevision } from "./external.js";
 
-/** Origin of an entity in the user's repository. */
-export type EntitySource = "user" | "harness-scoped";
+/** Origin of an authored entity. */
+export type EntitySource = "user" | "harness-scoped" | "external";
 
 /** Common source provenance and applicability after configuration is applied. */
 export interface Entity {
@@ -51,6 +52,7 @@ export interface SupportFile {
 
 /** A canonical skill and its support files, excluding nested skill roots. */
 export interface Skill extends Entity {
+  readonly external?: ExternalRevision;
   readonly dir: string;
   readonly frontmatter: SkillFrontmatter;
   readonly body: string;
@@ -133,6 +135,7 @@ export interface HarnessSources {
 /** Complete merged inventory; harnesses holds effective per-harness entity values. */
 export interface SourceModel {
   readonly repoDir: string;
+  readonly external?: readonly ExternalRevision[];
   readonly skills: readonly Skill[];
   readonly agents: readonly Agent[];
   readonly rules: readonly Rule[];
