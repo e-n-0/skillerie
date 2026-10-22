@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.4 - 2026-10-22
+
+### Fixes
+
+- Quieter validate and doctor output: no content lint inside external skills, one unenforced allowed_tools warning per agent, clean repository locations for external files, and prerelease harness versions accepted by doctor. (#3)
+
 ## 0.0.3 - 2026-10-22
 
 ### Features
