@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.6 - 2026-10-22
+
+### Documentation
+
+- Clearer CLI help and plainer doctor and install messages, including how to replace a file you edited. (#5)
+
 ## 0.0.5 - 2026-10-22
 
 ### Documentation
