@@ -1,6 +1,6 @@
 # Authoring skills, agents, and rules
 
-Sources are written once in a shared Markdown dialect (`dialect: 1`). Each adapter translates that dialect into what its harness understands: tool names, question tools, agent names, argument placeholders, and paths. This page describes the dialect and what each harness does with it.
+Sources are written once in a shared Markdown dialect (`dialect: 1`). Each adapter translates that dialect into what its harness understands: tool names, question tools, agent names, argument placeholders, and paths.
 
 ## Names
 

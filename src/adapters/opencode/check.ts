@@ -33,7 +33,7 @@ export async function check(ctx: ResolvedContext): Promise<readonly Diagnostic[]
         {
           severity: "info",
           code: "opencode.checkSkipped",
-          message: "OpenCode CLI is absent; headless configuration validation was skipped.",
+          message: "OpenCode CLI not found; skipped its config check.",
         },
       ];
     return [

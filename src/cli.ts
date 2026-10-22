@@ -37,7 +37,7 @@ export async function runCli(
   let exitCode = 0;
   const program = new Command()
     .name("skillerie")
-    .description("Build shared coding-agent configuration for multiple harnesses.")
+    .description("Keep one coding-agent setup in sync across OpenCode, Codex, OMO and Pi.")
     .version(ENGINE_VERSION)
     .option("--json", "Print machine-readable output")
     .exitOverride()
@@ -46,7 +46,7 @@ export async function runCli(
   program
     .command("validate")
     .description("Validate configuration and source content")
-    .option("--repo <dir>", "Source repository", process.cwd())
+    .option("--repo <dir>", "Config repository", process.cwd())
     .action(async (_options: unknown, command: Command) => {
       const options = command.optsWithGlobals<{ readonly repo: string; readonly json?: boolean }>();
       const result = await validateRepo(options.repo, dependencies);
@@ -61,7 +61,7 @@ export async function runCli(
   program
     .command("sync")
     .description("Render enabled harnesses into a generation")
-    .option("--repo <dir>", "Source repository", process.cwd())
+    .option("--repo <dir>", "Config repository", process.cwd())
     .option("--check", "Compare generated output without activating it")
     .addOption(
       new Option("--harness <h>", "Select one enabled harness").choices([
@@ -102,7 +102,7 @@ export async function runCli(
   program
     .command("outdated")
     .description("Compare external skills with their upstream repositories")
-    .option("--repo <dir>", "Source repository", process.cwd())
+    .option("--repo <dir>", "Config repository", process.cwd())
     .action(async (_options: unknown, command: Command) => {
       const options = command.optsWithGlobals<{ readonly repo: string; readonly json?: boolean }>();
       const result = await outdatedRepo(options.repo, dependencies);
@@ -116,15 +116,15 @@ export async function runCli(
     });
 
   for (const [name, description] of [
-    ["install", "Install the current generation"],
+    ["install", "Render your config and install it into the harness homes"],
     ["uninstall", "Remove managed installations and restore merged content"],
     ["status", "Report installation ownership and drift"],
-    ["doctor", "Check harness availability and environment"],
+    ["doctor", "Check harness versions, rendered configs and required tools"],
   ] as const) {
     const lifecycle = program
       .command(name)
       .description(description)
-      .option("--repo <dir>", "Source repository", process.cwd());
+      .option("--repo <dir>", "Config repository", process.cwd());
     if (name === "install" || name === "uninstall")
       lifecycle.addOption(
         new Option("--harness <h>", "Select one enabled harness").choices([
