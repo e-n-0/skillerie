@@ -62,7 +62,3 @@ Keep each pull request focused on one change and describe what changed and how y
 Every pull request that changes user-visible behavior adds `.changes/<pr-number>.yaml`; see [`.changes/README.md`](.changes/README.md) for the format. CI fails a pull request without its note unless it carries the `no-release-note` label.
 
 Each push to `main` that adds at least one note publishes the next patch version to npm and creates a matching GitHub release. The version comes from the latest `vX.Y.Z` tag, so `package.json` in the repository stays at `0.0.0`. The notes added since that tag become the GitHub release text and a new section at the top of `CHANGELOG.md`, which CI commits to `main` as `chore(release): vX.Y.Z` and tags; the package ships the same `CHANGELOG.md`. Never edit released sections by hand in a pull request that also adds notes. Publishing uses npm trusted publishing from the `CI` workflow, so no npm token is stored in the repository.
-
-## Code of conduct
-
-This project follows the [Contributor Covenant](CODE_OF_CONDUCT.md).
