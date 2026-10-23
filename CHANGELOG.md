@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.8 - 2026-10-23
+
+### Features
+
+- Profiles let one repository hold several setups, such as work and personal. Each profile changes which harnesses, skills, agents, rules, assets and MCP servers are selected; the first one is the default and --profile picks another. A new top-level mcp key selects MCP servers. (#7)
+
 ## 0.0.7 - 2026-10-23
 
 ### Features
