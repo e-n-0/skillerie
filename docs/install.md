@@ -89,7 +89,9 @@ Queries upstream for every `skills.external` entry and compares it with the acti
 - Branches and the default branch report `up to date` or `upstream moved <old>..<new>; run install`.
 - Full SHA pins report the default branch head when it differs.
 
-Human output has one line per entry. JSON includes `entries`, `diagnostics`, and `exitCode`; each entry has its ref, baseline `sha`, `latestSha`, `newerTags`, `status`, `outdated` boolean, and message. Exit status is 0 when current, 1 when any entry is behind (including a full SHA pin differing from the default head), and 2 on errors. The command does not update the cache index or active generation.
+When upstream has moved, `outdated` fetches the newer commit into the external cache, the same way `install` does, and compares the entry's selected skills file by file. The line then ends with what changed, for example `changed: review (SKILL.md, scripts/check.sh), audit (added)`, or with `no changes to review, release` when upstream moved without touching them. An entry only counts as behind when a selected skill changed. If the newer commit can't be fetched, a `external.changes` warning explains why and the entry falls back to the commit comparison.
+
+Human output has one line per entry. JSON includes `entries`, `diagnostics`, and `exitCode`; each entry has its ref, baseline `sha`, `latestSha`, `newerTags`, `status`, `outdated` boolean, and message, plus `skills` (each with `name`, `status` of `changed`, `unchanged`, `added` or `removed`, and the changed `files`) when upstream moved. Exit status is 0 when current, 1 when any selected skill changed upstream, and 2 on errors. The command adds fetched commits to the external cache but does not update the cache index or active generation.
 
 ### uninstall
 

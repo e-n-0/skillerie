@@ -44,7 +44,8 @@ async function indexedSha(file: string): Promise<string | undefined> {
   }
 }
 
-async function checkout(input: {
+/** Publish one commit under <root>/<sha>, reusing an existing checkout. */
+export async function checkout(input: {
   readonly root: string;
   readonly url: string;
   readonly sha: string;

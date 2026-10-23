@@ -1,7 +1,7 @@
 import { readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, expect, it } from "vitest";
-import { externalFixture } from "./helpers.js";
+import { externalFixture, skill } from "./helpers.js";
 
 let sample: Awaited<ReturnType<typeof externalFixture>>;
 beforeEach(async () => {
@@ -10,6 +10,12 @@ beforeEach(async () => {
 afterEach(async () => {
   await sample.cleanup();
 });
+
+/** Commit an upstream edit to the review skill, so selected content really changes. */
+async function changeReview(): Promise<string> {
+  await sample.put(join(sample.remote, "skills/review/SKILL.md"), skill("review", "Updated.\n"));
+  return sample.commit();
+}
 
 it.each([undefined, "main"])(
   "reports current with exit zero when floating ref %s has not moved",
@@ -32,13 +38,13 @@ it.each([undefined, "main"])(
     // Given: installed content followed by a new upstream commit.
     await sample.configure([{ url: sample.url, path: "skills", ...(ref ? { ref } : {}) }]);
     await sample.command(["install"]);
-    const sha = await sample.commit();
+    const sha = await changeReview();
     // When: outdated queries the remote.
     const result = await sample.command(["outdated"]);
     // Then: it reports the installed-to-upstream range and does not silently install.
     expect(result.code).toBe(1);
     expect(result.stdout).toContain(
-      `upstream moved ${sample.initial.slice(0, 8)}..${sha.slice(0, 8)}; run install`,
+      `upstream moved ${sample.initial.slice(0, 8)}..${sha.slice(0, 8)}; changed: review (SKILL.md); run install`,
     );
     expect(
       JSON.parse(
@@ -53,7 +59,7 @@ it("lists semantic version tags in numeric order when newer tags are available",
   await sample.remoteGit(["tag", "v1.2.0"]);
   await sample.configure([{ url: sample.url, path: "skills", ref: "v1.2.0" }]);
   await sample.command(["install"]);
-  await sample.commit();
+  await changeReview();
   for (const tag of ["v1.4.0", "v1.10.0", "v1.10.0-beta.1", "v01.99.0", "nightly"])
     await sample.remoteGit(["tag", tag]);
   // When: outdated returns its structured result.
@@ -70,7 +76,7 @@ it("lists semantic version tags in numeric order when newer tags are available",
         sha: sample.initial,
         status: "behind",
         newerTags: ["v1.4.0", "v1.10.0-beta.1", "v1.10.0"],
-        message: "v1.2.0 -> v1.10.0 available",
+        message: "v1.2.0 -> v1.10.0 available; changed: review (SKILL.md)",
       },
     ],
   });
@@ -82,13 +88,13 @@ it("prints a tag upgrade when the command uses human output", async () => {
   await sample.remoteGit(["tag", "v1.2.0"]);
   await sample.configure([{ url: sample.url, path: "skills", ref: "v1.2.0" }]);
   await sample.command(["install"]);
-  await sample.commit();
+  await changeReview();
   await sample.remoteGit(["tag", "v1.4.0"]);
   // When: outdated prints its human report.
   const result = await sample.command(["outdated"]);
   // Then: the available tag is actionable without JSON parsing.
   expect(result.code).toBe(1);
-  expect(result.stdout).toContain("v1.2.0 -> v1.4.0 available");
+  expect(result.stdout).toContain("v1.2.0 -> v1.4.0 available; changed: review (SKILL.md)");
 });
 
 it("ignores non-semver tags when a pinned tag is already the newest version", async () => {
@@ -113,13 +119,13 @@ it.each([
   // Given: a full SHA pin and an optionally newer default branch.
   await sample.configure([{ url: sample.url, path: "skills", ref: sample.initial }]);
   await sample.command(["sync"]);
-  const head = moved ? await sample.commit() : sample.initial;
+  const head = moved ? await changeReview() : sample.initial;
   // When: outdated compares the pin with the remote default head.
   const result = await sample.command(["outdated", ...(json ? ["--json"] : [])]);
   // Then: pins report the head rather than being mistaken for branch names.
   expect(result.code).toBe(moved ? 1 : 0);
   const message = moved
-    ? `default branch head ${head.slice(0, 8)} differs from pinned ${sample.initial.slice(0, 8)}`
+    ? `default branch head ${head.slice(0, 8)} differs from pinned ${sample.initial.slice(0, 8)}; changed: review (SKILL.md)`
     : "up to date";
   if (json) {
     expect(JSON.parse(result.stdout)).toMatchObject({
@@ -215,7 +221,7 @@ it("uses the install manifest when active generation revision metadata is unavai
   // Given: installed ownership followed by an unavailable current pointer.
   await sample.command(["install"]);
   await rm(join(sample.root, "cache/current"));
-  const sha = await sample.commit();
+  const sha = await changeReview();
   // When: outdated compares against persisted installation state.
   const result = await sample.command(["outdated", "--json"]);
   // Then: the original installed commit remains the baseline.
@@ -280,5 +286,59 @@ it("reports an unwritable home when offline external inspection has no manifest"
     diagnostics: expect.arrayContaining([
       expect.objectContaining({ code: "doctor.home.unwritable" }),
     ]),
+  });
+});
+
+it("reports current when upstream moved without touching the selected skills", async () => {
+  // Given: an installed pin that selects only release, then an upstream edit to review.
+  await sample.configure([
+    { url: sample.url, path: "skills", ref: sample.initial, include: ["release"] },
+  ]);
+  await sample.command(["install"]);
+  const head = await changeReview();
+  // When: outdated compares the selected skills between both commits.
+  const result = await sample.command(["outdated", "--json"]);
+  // Then: the moved head is reported, but nothing selected changed, so it is current.
+  expect(result.code).toBe(0);
+  expect(JSON.parse(result.stdout)).toMatchObject({
+    exitCode: 0,
+    entries: [
+      {
+        sha: sample.initial,
+        latestSha: head,
+        outdated: false,
+        status: "current",
+        skills: [{ name: "release", status: "unchanged", files: [] }],
+        message: `default branch head ${head.slice(0, 8)} differs from pinned ${sample.initial.slice(0, 8)}; no changes to release`,
+      },
+    ],
+  });
+});
+
+it("lists changed, added and removed files per skill when selected skills change", async () => {
+  // Given: an installed floating entry, then upstream edits, adds and removes skill content.
+  await sample.command(["install"]);
+  await sample.put(join(sample.remote, "skills/review/SKILL.md"), skill("review", "Updated.\n"));
+  await sample.put(join(sample.remote, "skills/review/scripts/check.sh"), "echo ok\n");
+  await sample.put(join(sample.remote, "skills/audit/SKILL.md"), skill("audit"));
+  await rm(join(sample.remote, "skills/release"), { recursive: true });
+  const head = await sample.commit();
+  // When: outdated compares every skill under the entry's path.
+  const result = await sample.command(["outdated", "--json"]);
+  // Then: each skill's status and changed files are reported, and the entry is behind.
+  expect(result.code).toBe(1);
+  expect(JSON.parse(result.stdout)).toMatchObject({
+    entries: [
+      {
+        latestSha: head,
+        status: "behind",
+        skills: [
+          { name: "audit", status: "added", files: ["SKILL.md"] },
+          { name: "release", status: "removed", files: ["SKILL.md"] },
+          { name: "review", status: "changed", files: ["SKILL.md", "scripts/check.sh"] },
+        ],
+        message: `upstream moved ${sample.initial.slice(0, 8)}..${head.slice(0, 8)}; changed: audit (added), release (removed), review (SKILL.md, scripts/check.sh); run install`,
+      },
+    ],
   });
 });
