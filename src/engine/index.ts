@@ -1,6 +1,6 @@
 export { validateRepo } from "./validation.js";
 export { outdatedRepo } from "./outdated.js";
-export type { OutdatedEntry } from "./outdated.js";
+export type { OutdatedEntry, OutdatedResult } from "./outdated.js";
 export { updateRepo } from "./update.js";
 export type { UpdateResult } from "./update.js";
 export { syncRepo } from "./sync.js";

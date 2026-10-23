@@ -27,7 +27,7 @@ it.each([undefined, "main"])(
     const result = await sample.command(["outdated"]);
     // Then: the entry is current.
     expect(result.code).toBe(0);
-    expect(result.stdout).toContain("up to date");
+    expect(result.stdout).toBe("The external source is up to date.\n");
     expect(result.stderr).toBe("");
   },
 );
@@ -44,7 +44,11 @@ it.each([undefined, "main"])(
     // Then: it reports the installed-to-upstream range and does not silently install.
     expect(result.code).toBe(1);
     expect(result.stdout).toContain(
-      `upstream moved ${sample.initial.slice(0, 8)}..${sha.slice(0, 8)}; changed: review (SKILL.md); run install`,
+      `review  changed  ${sample.url}  ${sample.initial.slice(0, 7)} -> ${sha.slice(0, 7)}  SKILL.md`,
+    );
+    expect(result.stdout).toContain("No changes: release");
+    expect(result.stdout).toContain(
+      "Run skillerie install to pick up the source that follows a branch.",
     );
     expect(
       JSON.parse(
@@ -76,7 +80,7 @@ it("lists semantic version tags in numeric order when newer tags are available",
         sha: sample.initial,
         status: "behind",
         newerTags: ["v1.4.0", "v1.10.0-beta.1", "v1.10.0"],
-        message: "v1.2.0 -> v1.10.0 available; changed: review (SKILL.md); run skillerie update",
+        message: "v1.2.0 -> v1.10.0 available; changed: review (SKILL.md)",
       },
     ],
   });
@@ -94,7 +98,10 @@ it("prints a tag upgrade when the command uses human output", async () => {
   const result = await sample.command(["outdated"]);
   // Then: the available tag is actionable without JSON parsing.
   expect(result.code).toBe(1);
-  expect(result.stdout).toContain("v1.2.0 -> v1.4.0 available; changed: review (SKILL.md)");
+  expect(result.stdout).toContain(
+    "review  changed  " + sample.url + "  v1.2.0 -> v1.4.0  SKILL.md",
+  );
+  expect(result.stdout).toContain("Run skillerie update to move this pin, then skillerie install.");
 });
 
 it("ignores non-semver tags when a pinned tag is already the newest version", async () => {
@@ -107,7 +114,7 @@ it("ignores non-semver tags when a pinned tag is already the newest version", as
   const result = await sample.command(["outdated"]);
   // Then: fresh resolution provides a baseline and non-version labels are ignored.
   expect(result.code).toBe(0);
-  expect(result.stdout).toContain("up to date");
+  expect(result.stdout).toBe("The external source is up to date.\n");
 });
 
 it.each([
@@ -125,7 +132,7 @@ it.each([
   // Then: pins report the head rather than being mistaken for branch names.
   expect(result.code).toBe(moved ? 1 : 0);
   const message = moved
-    ? `default branch head ${head.slice(0, 8)} differs from pinned ${sample.initial.slice(0, 8)}; changed: review (SKILL.md); run skillerie update`
+    ? `default branch head ${head.slice(0, 8)} differs from pinned ${sample.initial.slice(0, 8)}; changed: review (SKILL.md)`
     : "up to date";
   if (json) {
     expect(JSON.parse(result.stdout)).toMatchObject({
@@ -141,7 +148,12 @@ it.each([
         },
       ],
     });
-  } else expect(result.stdout).toContain(message);
+  } else
+    expect(result.stdout).toContain(
+      moved
+        ? `review  changed  ${sample.url}  ${sample.initial.slice(0, 7)} -> ${head.slice(0, 7)}  SKILL.md`
+        : "The external source is up to date.",
+    );
 });
 
 it("returns exit two when an upstream comparison fails", async () => {
@@ -337,7 +349,7 @@ it("lists changed, added and removed files per skill when selected skills change
           { name: "release", status: "removed", files: ["SKILL.md"] },
           { name: "review", status: "changed", files: ["SKILL.md", "scripts/check.sh"] },
         ],
-        message: `upstream moved ${sample.initial.slice(0, 8)}..${head.slice(0, 8)}; changed: audit (added), release (removed), review (SKILL.md, scripts/check.sh); run install`,
+        message: `upstream moved ${sample.initial.slice(0, 8)}..${head.slice(0, 8)}; changed: audit (added), release (removed), review (SKILL.md, scripts/check.sh)`,
       },
     ],
   });
