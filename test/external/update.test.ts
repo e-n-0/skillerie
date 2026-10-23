@@ -50,7 +50,7 @@ it("bumps a SHA pin to the default branch head when a selected skill changed", a
   expect(result.code, result.stderr).toBe(0);
   expect(await readFile(config(), "utf8")).toBe(before.replace(sample.initial, head));
   expect(result.stdout).toContain(
-    `UPDATED ${sample.url} ${sample.initial.slice(0, 12)} -> ${head.slice(0, 12)}; changed: review (SKILL.md)`,
+    `${sample.url}  ${sample.initial.slice(0, 7)} -> ${head.slice(0, 7)}  review`,
   );
   expect(result.stdout).toContain("run skillerie install");
 });
@@ -119,8 +119,6 @@ it("reports floating entries instead of rewriting them", async () => {
   const result = await sample.command(["update"]);
   // Then: the entry is reported as following upstream and the file is untouched.
   expect(result.code, result.stderr).toBe(0);
-  expect(result.stdout).toContain(
-    `FOLLOWS ${sample.url} follows the default branch; run install to apply`,
-  );
+  expect(result.stdout).toContain(`Following a branch: ${sample.url}`);
   expect(await readFile(config(), "utf8")).toBe(before);
 });

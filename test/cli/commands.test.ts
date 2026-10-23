@@ -34,7 +34,8 @@ it("exits zero when validate receives the complete sample repository", async () 
   // When: the CLI validates it.
   const result = await command(args);
   // Then: a clean repository has no diagnostics.
-  expect(result).toEqual({ code: 0, stdout: "", stderr: "" });
+  expect(result).toMatchObject({ code: 0, stderr: "" });
+  expect(result.stdout).toMatch(/^Valid: \d+ skills?, \d+ agents?, \d+ rules? for [a-z, ]+\.\n$/);
 });
 
 it.each(brokenCases)(
@@ -88,7 +89,7 @@ it("exits zero when sync check matches the current generation", async () => {
   // When: check runs against unchanged source.
   const result = await command(["sync", "--repo", sample.repo, "--check"]);
   // Then: freshness succeeds without a diagnostic.
-  expect(result).toEqual({ code: 0, stdout: "", stderr: "" });
+  expect(result).toEqual({ code: 0, stdout: "The active generation is up to date.\n", stderr: "" });
 });
 
 it("exits one when sync check observes a source edit", async () => {

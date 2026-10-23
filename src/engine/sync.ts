@@ -59,6 +59,7 @@ export async function syncRepo(repoDir: string, options: SyncOptions = {}): Prom
       });
       continue;
     }
+    options.onProgress?.(`Rendering ${harness}`);
     const result = await renderHarness(adapter, { model, snapshot: effectiveSnapshot, env });
     files.push(...result.files);
     diagnostics.push(...result.diagnostics);

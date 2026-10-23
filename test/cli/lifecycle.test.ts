@@ -90,7 +90,7 @@ it("rejects a disabled harness when install selects it", async () => {
 
 it("colors doctor diagnostics only when color is enabled", async () => {
   // Given: the same doctor run with and without color support.
-  const args = ["doctor", "--repo", sample.repo];
+  const args = ["doctor", "--repo", sample.repo, "--verbose"];
   // When: doctor prints its diagnostics.
   const colored = await command(args, true);
   const plain = await command(args);

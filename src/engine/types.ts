@@ -17,6 +17,8 @@ export interface EngineOptions {
   readonly adapters?: ReadonlyMap<HarnessId, AdapterLoader>;
   readonly engineVersion?: string;
   readonly os?: "darwin" | "linux";
+  /** Called as each slow phase starts, with a short human description. */
+  readonly onProgress?: (message: string) => void;
 }
 
 export interface ValidationResult {

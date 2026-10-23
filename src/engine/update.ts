@@ -4,10 +4,9 @@ import { isMap, isScalar, type Scalar } from "yaml";
 import { configDocument } from "../config/document.js";
 import type { Diagnostic } from "../core/types.js";
 import type { SkillChange } from "./external/changes.js";
-import { outdatedRepo, type OutdatedEntry } from "./outdated.js";
-import type { EngineOptions } from "./types.js";
+import { outdatedRepo, type OutdatedEntry, type OutdatedOptions } from "./outdated.js";
 
-export interface UpdateOptions extends EngineOptions {
+export interface UpdateOptions extends OutdatedOptions {
   /** Only update entries where one of these skills changed; all changed entries when empty. */
   readonly skills?: readonly string[];
 }

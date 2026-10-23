@@ -2,7 +2,7 @@
 import { Command } from "commander";
 import { CommanderError, Option } from "commander";
 import { existsSync, realpathSync } from "node:fs";
-import { basename, resolve } from "node:path";
+import { basename, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Diagnostic } from "./core/types.js";
 import {
@@ -13,15 +13,16 @@ import {
   updateRepo,
   validateRepo,
 } from "./engine/index.js";
-import { describeChanges } from "./engine/external/changes.js";
 import type {
   EngineOptions,
+  UpdateResult,
   LifecycleResult,
   OutdatedEntry,
   OutdatedResult,
 } from "./engine/index.js";
 import { externalRepositoryUrl } from "./model/external.js";
 import { isHarness } from "./engine/render.js";
+import { HARNESS_IDS } from "./engine/types.js";
 import { ENGINE_VERSION } from "./version.js";
 import { InstallError } from "./install/index.js";
 
@@ -147,30 +148,117 @@ const ACTION_LABELS = {
   BACKUP: ["backed up", "to back up", "33"],
 } as const;
 
-/** Errors in full; warnings grouped to one line per code, since validate shows each one. */
-export function formatInstallDiagnostics(
+/** Errors and notes in full; warnings grouped to one line per code unless verbose. */
+export function formatGroupedDiagnostics(
   diagnostics: readonly Diagnostic[],
-  color = false,
+  options: {
+    readonly color?: boolean;
+    readonly verbose?: boolean;
+    /** Hide informational notes (doctor's passed checks) unless verbose. */
+    readonly hideInfo?: boolean;
+  } = {},
 ): readonly string[] {
+  const color = options.color === true;
+  let hidden = 0;
   const lines: string[] = [];
-  const warnings = new Map<string, string[]>();
+  const warnings = new Map<string, { readonly name: string; readonly message: string }[]>();
   for (const diagnostic of diagnostics) {
     if (diagnostic.code === "merge.conflict") continue;
-    if (diagnostic.severity !== "warn") {
+    if (diagnostic.severity === "info" && options.hideInfo && !options.verbose) {
+      hidden += 1;
+      continue;
+    }
+    if (diagnostic.severity !== "warn" || options.verbose) {
       lines.push(formatDiagnostic(diagnostic, color));
       continue;
     }
-    const name = diagnostic.file ? basename(diagnostic.file).replace(/\.[^.]+$/, "") : "skillerie";
-    warnings.set(diagnostic.code, [...(warnings.get(diagnostic.code) ?? []), name]);
+    // A skill is named after its folder rather than its SKILL.md file.
+    const name = !diagnostic.file
+      ? "skillerie"
+      : basename(diagnostic.file) === "SKILL.md"
+        ? basename(dirname(diagnostic.file))
+        : basename(diagnostic.file).replace(/\.[^.]+$/, "");
+    warnings.set(diagnostic.code, [
+      ...(warnings.get(diagnostic.code) ?? []),
+      { name, message: diagnostic.message },
+    ]);
   }
-  for (const [code, names] of warnings) {
+  for (const [code, entries] of warnings) {
     const label = color ? style(SEVERITY_STYLE.warn, "warn") : "warn";
-    const detail = `${code} (${names.length}): ${[...new Set(names)].join(", ")}`;
+    const names = [...new Set(entries.map((entry) => entry.name))];
+    // One source for every warning: its message says more than a repeated file name.
+    const what =
+      names.length === 1 && entries.length > 1
+        ? (entries[0]?.message ?? "").replace(/^\S+:\/\/\S+: /, "")
+        : names.join(", ");
+    const detail = `${code} (${entries.length}): ${what}`;
     lines.push(`${label} ${color ? style("2", detail) : detail}`);
   }
-  const hint = "Run skillerie validate to see each warning.";
-  if (warnings.size) lines.push(color ? style("2", hint) : hint);
+
+  const hint =
+    warnings.size && hidden
+      ? "Add --verbose to see each warning and passed check."
+      : warnings.size
+        ? "Add --verbose to see each warning."
+        : hidden
+          ? "Add --verbose to see each passed check."
+          : "";
+  if (hint) lines.push(color ? style("2", hint) : hint);
   return lines;
+}
+
+/** One-line count of diagnostics by severity, for commands that end on diagnostics. */
+export function formatTally(diagnostics: readonly Diagnostic[], color = false): string {
+  const count = (severity: Diagnostic["severity"]) =>
+    diagnostics.filter((item) => item.severity === severity).length;
+  const [errors, warnings, notes] = [count("error"), count("warn"), count("info")];
+  const text = [
+    `${errors} ${errors === 1 ? "error" : "errors"}`,
+    `${warnings} ${warnings === 1 ? "warning" : "warnings"}`,
+    ...(notes ? [`${notes} passed`] : []),
+  ].join(", ");
+  return color ? style(errors ? "1;31" : warnings ? "33" : "32", text) : text;
+}
+
+/** Human update report: one row per bumped source with the skills that changed. */
+export function formatUpdateReport(result: UpdateResult, color = false): string {
+  if (result.exitCode !== 0) return "";
+  const paint = (code: string, text: string) => (color ? style(code, text) : text);
+  const version = (value: string) => (/^[a-f0-9]{40}$/i.test(value) ? value.slice(0, 7) : value);
+  const lines: string[] = [];
+  if (result.updated.length) {
+    const rows = result.updated.map((entry) => [
+      sourceName(entry.url),
+      `${version(entry.from)} -> ${version(entry.to)}`,
+      entry.skills
+        .filter((skill) => skill.status !== "unchanged")
+        .map((skill) =>
+          skill.status === "changed" ? skill.name : `${skill.name} (${skill.status})`,
+        )
+        .join(", "),
+    ]);
+    const widths = [0, 1].map((column) => Math.max(...rows.map((row) => row[column]?.length ?? 0)));
+    lines.push(paint("1", `Updated ${rows.length} ${rows.length === 1 ? "pin" : "pins"}:`), "");
+    for (const [source = "", change = "", skills = ""] of rows)
+      lines.push(
+        `  ${source.padEnd(widths[0] ?? 0)}  ${paint("2", change.padEnd(widths[1] ?? 0))}  ${skills}`,
+      );
+  }
+  if (result.followed.length) {
+    if (lines.length) lines.push("");
+    lines.push(
+      `${paint("1", "Following a branch:")} ${result.followed.map((entry) => sourceName(entry.url)).join(", ")}`,
+    );
+  }
+  if (lines.length) lines.push("");
+  lines.push(
+    result.updated.length
+      ? `Review the diff of skillerie.yaml, then run ${paint("1", "skillerie install")}.`
+      : result.followed.length
+        ? `Run ${paint("1", "skillerie install")} to pick up the sources that follow a branch.`
+        : paint("32", "No pinned external skill has changes to update."),
+  );
+  return `${lines.join("\n")}\n`;
 }
 
 /** Human install report: one summary row per harness home, details on request. */
@@ -366,17 +454,23 @@ export async function runCli(
     .command("validate")
     .description("Validate configuration and source content")
     .option("--repo <dir>", "Config repository", process.cwd())
+    .option("--verbose", "Show each warning")
     .option("--profile <name>", "Profile to use; defaults to the first one in skillerie.yaml")
     .action(async (_options: unknown, command: Command) => {
       const options = command.optsWithGlobals<{
         readonly repo: string;
         readonly json?: boolean;
         readonly profile?: string;
+        readonly verbose?: boolean;
       }>();
+      const live =
+        !options.json && dependencies.stderr === undefined && process.stderr.isTTY === true;
       const result = await validateRepo(options.repo, {
         ...dependencies,
+        ...(live ? { onProgress: (message: string) => stderr(`\r\x1b[2K${message}...`) } : {}),
         ...(options.profile === undefined ? {} : { profile: options.profile }),
       });
+      if (live) stderr("\r\x1b[2K");
       exitCode = hasErrors(result.diagnostics) ? 1 : 0;
       if (options.json) {
         stdout(
@@ -387,7 +481,20 @@ export async function runCli(
           })}\n`,
         );
       } else {
-        for (const diagnostic of result.diagnostics) stderr(`${formatDiagnostic(diagnostic)}\n`);
+        for (const line of formatGroupedDiagnostics(result.diagnostics, {
+          color,
+          verbose: options.verbose === true,
+        }))
+          stderr(`${line}\n`);
+        if (result.model && exitCode === 0) {
+          const harnesses = HARNESS_IDS.filter(
+            (id) => result.snapshot?.config.harnesses[id]?.enabled,
+          );
+          const count = (n: number, noun: string) => `${n} ${noun}${n === 1 ? "" : "s"}`;
+          stdout(
+            `${colorOut ? style("32", "Valid") : "Valid"}${result.profile === undefined ? "" : ` (profile ${result.profile})`}: ${count(result.model.skills.length, "skill")}, ${count(result.model.agents.length, "agent")}, ${count(result.model.rules.length, "rule")} for ${harnesses.join(", ")}.\n`,
+          );
+        } else stderr(`${formatTally(result.diagnostics, color)}\n`);
       }
     });
 
@@ -397,6 +504,7 @@ export async function runCli(
     .option("--repo <dir>", "Config repository", process.cwd())
     .option("--profile <name>", "Profile to use; defaults to the first one in skillerie.yaml")
     .option("--check", "Compare generated output without activating it")
+    .option("--verbose", "Show each warning and the generation path")
     .addOption(
       new Option("--harness <h>", "Select one enabled harness").choices([
         "opencode",
@@ -412,13 +520,18 @@ export async function runCli(
         readonly profile?: string;
         readonly check?: boolean;
         readonly harness?: string;
+        readonly verbose?: boolean;
       }>();
+      const live =
+        !options.json && dependencies.stderr === undefined && process.stderr.isTTY === true;
       const result = await syncRepo(options.repo, {
         ...dependencies,
+        ...(live ? { onProgress: (message: string) => stderr(`\r\x1b[2K${message}...`) } : {}),
         ...(options.profile === undefined ? {} : { profile: options.profile }),
         ...(options.check === undefined ? {} : { check: options.check }),
         ...(options.harness && isHarness(options.harness) ? { harness: options.harness } : {}),
       });
+      if (live) stderr("\r\x1b[2K");
       exitCode = hasErrors(result.diagnostics) || result.drift.length > 0 ? 1 : 0;
       if (options.json) {
         stdout(
@@ -431,9 +544,29 @@ export async function runCli(
           })}\n`,
         );
       } else {
-        if (result.profile !== undefined) stdout(`PROFILE ${result.profile}\n`);
-        for (const diagnostic of result.diagnostics) stderr(`${formatDiagnostic(diagnostic)}\n`);
-        if (result.generation) stdout(`Generated ${result.generation.dir}\n`);
+        const paint = (code: string, text: string) => (colorOut ? style(code, text) : text);
+        if (result.profile !== undefined) stdout(`${paint("1", "Profile:")} ${result.profile}\n`);
+        // Drift is one error per file; summarize it unless verbose.
+        const drift = options.verbose
+          ? []
+          : result.diagnostics.filter((item) => item.code === "sync.drift");
+        for (const line of formatGroupedDiagnostics(
+          result.diagnostics.filter((item) => !drift.includes(item)),
+          { color, verbose: options.verbose === true },
+        ))
+          stderr(`${line}\n`);
+        if (drift.length)
+          stdout(
+            `${paint("33", `${drift.length} generated files differ from the active generation.`)} Run ${paint("1", "skillerie sync")} to regenerate.\n`,
+          );
+        else if (options.check && exitCode === 0)
+          stdout(`${paint("32", "The active generation is up to date.")}\n`);
+        if (result.generation)
+          stdout(
+            options.verbose
+              ? `Generated ${result.generation.dir}\n`
+              : `${paint("32", "Generated")} generation ${basename(result.generation.dir).slice(0, 7)}.\n`,
+          );
       }
     });
 
@@ -456,7 +589,7 @@ export async function runCli(
         ...(options.profile === undefined ? {} : { profile: options.profile }),
         ...(live
           ? {
-              onProgress: ({ phase, index, total, url }) => {
+              onSource: ({ phase, index, total, url }) => {
                 const verb = phase === "query" ? "Checking" : "Fetching";
                 stderr(`\r\x1b[2K${verb} ${index + 1}/${total} ${sourceName(url)}...`);
               },
@@ -495,6 +628,7 @@ export async function runCli(
       );
     if (name === "uninstall")
       lifecycle.option("--verbose", "List every file the uninstall touches");
+    if (name === "status" || name === "doctor") lifecycle.option("--verbose", "Show each warning");
     if (name === "install")
       lifecycle
         .option("--verbose", "List every file the install touches")
@@ -514,10 +648,7 @@ export async function runCli(
       }>();
       // A live status line on a terminal; resolving and rendering can take a while.
       const live =
-        name !== "doctor" &&
-        !options.json &&
-        dependencies.stderr === undefined &&
-        process.stderr.isTTY === true;
+        !options.json && dependencies.stderr === undefined && process.stderr.isTTY === true;
       const result = await runLifecycle(options.repo, {
         ...dependencies,
         command: name,
@@ -532,7 +663,11 @@ export async function runCli(
       exitCode = result.valid ? 0 : 1;
       if (options.json) stdout(`${JSON.stringify(result)}\n`);
       else if (name !== "doctor") {
-        for (const line of formatInstallDiagnostics(result.diagnostics, color)) stderr(`${line}\n`);
+        for (const line of formatGroupedDiagnostics(result.diagnostics, {
+          color,
+          verbose: options.verbose === true,
+        }))
+          stderr(`${line}\n`);
         const home = (dependencies.env ?? process.env)["HOME"];
         stdout(
           name === "status"
@@ -550,9 +685,14 @@ export async function runCli(
               }),
         );
       } else {
-        // doctor reports only diagnostics.
-        for (const diagnostic of result.diagnostics)
-          stderr(`${formatDiagnostic(diagnostic, color)}\n`);
+        // doctor reports problems, hides passed checks unless verbose, then a one-line tally.
+        for (const line of formatGroupedDiagnostics(result.diagnostics, {
+          color,
+          verbose: options.verbose === true,
+          hideInfo: true,
+        }))
+          stderr(`${line}\n`);
+        stderr(`${formatTally(result.diagnostics, color)}\n`);
       }
     });
   }
@@ -568,27 +708,38 @@ export async function runCli(
         readonly json?: boolean;
         readonly profile?: string;
       }>();
+      const live =
+        !options.json && dependencies.stderr === undefined && process.stderr.isTTY === true;
       const result = await updateRepo(options.repo, {
         ...dependencies,
+        ...(live
+          ? {
+              onSource: ({
+                phase,
+                index,
+                total,
+                url,
+              }: {
+                readonly phase: "query" | "fetch";
+                readonly index: number;
+                readonly total: number;
+                readonly url: string;
+              }) =>
+                stderr(
+                  `\r\x1b[2K${phase === "query" ? "Checking" : "Fetching"} ${index + 1}/${total} ${sourceName(url)}...`,
+                ),
+            }
+          : {}),
         skills,
         ...(options.profile === undefined ? {} : { profile: options.profile }),
       });
+      if (live) stderr("\r\x1b[2K");
       exitCode = result.exitCode;
       if (options.json) stdout(`${JSON.stringify(result)}\n`);
       else {
-        for (const entry of result.updated)
-          stdout(
-            `UPDATED ${entry.url} ${entry.from.slice(0, 12)} -> ${entry.to.slice(0, 12)}; changed: ${describeChanges(entry.skills)}\n`,
-          );
-        for (const entry of result.followed) stdout(`FOLLOWS ${entry.url} ${entry.message}\n`);
+        stdout(formatUpdateReport(result, colorOut));
         for (const diagnostic of result.diagnostics)
           stderr(`${formatDiagnostic(diagnostic, color)}\n`);
-        if (result.exitCode === 0)
-          stdout(
-            result.updated.length
-              ? "Updated skillerie.yaml; review the diff, then run skillerie install.\n"
-              : "No pinned external skill has changes to update.\n",
-          );
       }
     });
 
@@ -606,7 +757,12 @@ export async function runCli(
     )
     .action(async (dir: string | undefined, _options: unknown, command: Command) => {
       const { runInit } = await import("./init/index.js");
-      exitCode = await runInit(dir ?? process.cwd(), command, { ...dependencies, stdout, stderr });
+      exitCode = await runInit(dir ?? process.cwd(), command, {
+        ...dependencies,
+        stdout,
+        stderr,
+        color: colorOut,
+      });
     });
 
   try {
