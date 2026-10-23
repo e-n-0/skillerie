@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.10 - 2026-10-23
+
+### Features
+
+- `skillerie outdated` colors its results in a terminal: green when a skill is up to date, yellow when it is behind. Set NO_COLOR to turn it off. (#9)
+
 ## 0.0.9 - 2026-10-23
 
 ### Fixes
