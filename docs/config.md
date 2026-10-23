@@ -59,6 +59,8 @@ Relative paths in `paths` and `harnesses.<harness>.path` are resolved against th
 | [`paths`](#paths) | object of strings | see below |
 | [`sources`](#sources) | object of source paths | conventional source paths |
 | [`skills`, `agents`, `rules`, `assets`](#entity-selection) | object | `{}` |
+| [`mcp`](#mcp) | object | `{}` |
+| [`profiles`](#profiles) | object of profiles | none |
 | [`shared`](#shared) | object | see below |
 | [`lint`](#lint) | object | see below |
 | [`generated`](#generated) | object | `{ commit: false }` |
@@ -264,6 +266,67 @@ Requirements are evaluated once per run and recorded in the input snapshot. Envi
 
 When an entity is excluded for a harness, references to it from that harness's other content are reported by the `references` lint rule rather than dropped silently.
 
+### mcp
+
+Selects which servers from [`mcp.json`](#mcpjson) are rendered. It isn't the same key as `sources.mcp`, which only says where `mcp.json` lives.
+
+```yaml
+mcp:
+  enabled: [] # allowlist; empty means "all"
+  disabled: [tracker] # always wins
+  harnesses:
+    codex:
+      disabled: [docs]
+```
+
+<!-- prettier-ignore -->
+| Key | Type | Default | Meaning |
+|-|-|-|-|
+| `enabled` | list of server names | `[]` | When nonempty, only these servers are rendered |
+| `disabled` | list of server names | `[]` | These servers are never rendered |
+| `harnesses.<harness>` | object with `enabled`, `disabled` | none | The same keys, for one harness |
+
+The rule is the same as [entity selection](#entity-selection), without overrides: a server is dropped when its name is in the global or the per-harness `disabled` list, and otherwise kept when the effective `enabled` list is empty or contains it. A nonempty per-harness `enabled` list replaces the global one. Selection applies to `mcpServers` and to the servers in `harnessOverrides`. Setting a server to `null` in `harnessOverrides.<harness>` still removes it for that harness.
+
+### profiles
+
+Profiles let one repository hold several setups, for example one for work and one for personal machines. Each profile changes the selection on top of the rest of `skillerie.yaml`.
+
+```yaml
+profiles:
+  work:
+    mcp: { enabled: [jira, datadog] }
+    skills: { disabled: [personal-notes] }
+  personal:
+    harnesses: { codex: { enabled: false } }
+    mcp: { disabled: [jira, datadog] }
+    skills:
+      harnesses:
+        omo: { disabled: [debug] }
+```
+
+The first profile in the file is the default. Pass `--profile <name>` to `validate`, `sync`, `install`, `status`, `doctor`, `outdated`, or `uninstall` to use another one; see [install](install.md#profiles). Naming a profile that doesn't exist is a `config.profile.unknown` error that lists the available profiles, and so is passing `--profile` when the file has no `profiles`. Without `profiles`, nothing changes.
+
+Profile names are lowercase tokens separated by single hyphens, and they must start with a letter (`work`, `client-2`). A profile may set:
+
+<!-- prettier-ignore -->
+| Key | Type | Meaning |
+|-|-|-|
+| `harnesses.<harness>.enabled` | boolean | Turns a harness on or off |
+| `skills`, `agents`, `rules`, `assets` | [entity selection](#entity-selection) | `enabled`, `disabled`, `overrides`, and `harnesses.<harness>`; no `external` |
+| `mcp` | [mcp selection](#mcp) | `enabled`, `disabled`, and `harnesses.<harness>` |
+
+Paths, options, lint, hooks, and external skills can't be changed by a profile.
+
+The selected profile is merged into the base configuration. For the global selection and for each `harnesses.<harness>` selection:
+
+- `disabled` lists are combined. Disabled always wins, so a profile can't bring back a name the base disables.
+- A nonempty `enabled` list in the profile replaces the base list. An empty or missing one keeps the base list.
+- `overrides` are merged per name, and the profile's fields win.
+- `harnesses.<harness>.enabled` from the profile replaces the base value. A profile can enable a harness that the base doesn't list; it gets the default path.
+
+The install manifest records which profile was installed. When `status` runs with a different profile, it warns with `install.profile.mismatch` and tells you which `--profile` to pass.
+
 ### shared
 
 <!-- prettier-ignore -->
@@ -354,7 +417,7 @@ MCP servers live in `mcp.json` at the repository root, in the common `mcpServers
 | `harnessOverrides.<harness>` | map of name to server or `null` | Replaces a whole server for one harness; `null` removes it |
 | `settings` | JSON object | Extra settings written into the OMO and Pi MCP files |
 
-A server has `command` with optional `args` and `env`, or `url` with optional `headers`. Other fields are kept and passed to adapters that understand them; see the harness pages. Every string value supports [variables](#variables). Reference secrets through environment variables or files; don't inline them.
+Use the [`mcp`](#mcp) key in `skillerie.yaml` to choose which of these servers are rendered. A server has `command` with optional `args` and `env`, or `url` with optional `headers`. Other fields are kept and passed to adapters that understand them; see the harness pages. Every string value supports [variables](#variables). Reference secrets through environment variables or files; don't inline them.
 
 ## Environment variables
 

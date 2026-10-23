@@ -1,0 +1,6 @@
+type: feat
+description: >-
+  Profiles let one repository hold several setups, such as work and personal.
+  Each profile changes which harnesses, skills, agents, rules, assets and MCP
+  servers are selected; the first one is the default and --profile picks
+  another. A new top-level mcp key selects MCP servers.

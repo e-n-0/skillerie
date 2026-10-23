@@ -20,6 +20,16 @@ export interface EntitySettings extends EntitySelection {
   readonly harnesses: HarnessMap<EntitySelection>;
 }
 
+/** MCP server selection without entity overrides. */
+export interface McpSelection {
+  readonly enabled: readonly string[];
+  readonly disabled: readonly string[];
+  readonly harnesses: HarnessMap<{
+    readonly enabled: readonly string[];
+    readonly disabled: readonly string[];
+  }>;
+}
+
 export interface SkillSettings extends EntitySettings {
   readonly external?: readonly ExternalSkillInput[];
 }
@@ -74,4 +84,8 @@ export interface ResolvedConfig {
   readonly hooks: { readonly postInstall: readonly PostInstallHook[] };
   /** Optional semver range checked against the running engine at startup. */
   readonly engine?: string;
+  /** Applied profile, omitted when the configuration defines no profiles. */
+  readonly profile?: string;
+  /** Omitted when no global or per-harness MCP selection is configured. */
+  readonly mcp?: McpSelection;
 }

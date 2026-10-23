@@ -18,6 +18,7 @@ export function installOptions(input: {
     throw new InstallError("engine.harness", `Harness ${input.harness} is not configured.`);
   return {
     ...(input.external?.length ? { external: input.external } : {}),
+    ...(input.config.profile === undefined ? {} : { profile: input.config.profile }),
     repo: {
       path: input.config.paths.repo,
       configHash: `sha256:${createHash("sha256").update(JSON.stringify(input.config)).digest("hex")}`,

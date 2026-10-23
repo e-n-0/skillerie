@@ -1,5 +1,11 @@
 import { resolve } from "node:path";
-import type { Environment, HarnessId, ResolvedHarnessConfig } from "../core/types.js";
+import type {
+  Environment,
+  HarnessId,
+  McpSelection,
+  ResolvedConfig,
+  ResolvedHarnessConfig,
+} from "../core/types.js";
 import type { ConfigInput } from "./input.js";
 import { entitySettings } from "./input.js";
 import type { LoadedConfig } from "./sources.js";
@@ -7,7 +13,7 @@ import type { resolvePaths } from "./paths.js";
 import { expandVariables } from "./variables.js";
 
 export function normalizeConfig(
-  input: ConfigInput,
+  input: ConfigInput & Pick<ResolvedConfig, "profile">,
   resolution: ReturnType<typeof resolvePaths>,
   env: Environment,
 ): LoadedConfig {
@@ -45,10 +51,28 @@ export function normalizeConfig(
       options,
     };
   }
+  const mcp: McpSelection | undefined =
+    input.mcp === undefined
+      ? undefined
+      : {
+          enabled: input.mcp.enabled ?? [],
+          disabled: input.mcp.disabled ?? [],
+          harnesses: Object.fromEntries(
+            Object.entries(input.mcp.harnesses ?? {}).map(([name, value]) => [
+              name,
+              { enabled: value.enabled ?? [], disabled: value.disabled ?? [] },
+            ]),
+          ),
+        };
   const config: LoadedConfig = {
     version: 1,
     dialect: 1,
     ...(input.engine === undefined ? {} : { engine: input.engine }),
+    ...(input.profile === undefined ? {} : { profile: input.profile }),
+    ...(mcp &&
+    (mcp.enabled.length > 0 || mcp.disabled.length > 0 || Object.keys(mcp.harnesses).length > 0)
+      ? { mcp }
+      : {}),
     harnesses,
     paths,
     sources: resolution.sources,

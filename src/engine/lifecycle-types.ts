@@ -29,6 +29,7 @@ export interface InstallationResult {
 }
 
 export interface LifecycleResult {
+  readonly profile?: string;
   readonly external?: readonly ExternalRevision[];
   readonly valid: boolean;
   readonly diagnostics: readonly Diagnostic[];

@@ -125,6 +125,7 @@ export async function readManifest(home: string): Promise<Manifest | undefined> 
   };
   return {
     version: 1,
+    ...(value["profile"] === undefined ? {} : { profile: string(value["profile"]) }),
     ...(value["external"] === undefined
       ? {}
       : { external: parseExternalRevisions(value["external"]) }),

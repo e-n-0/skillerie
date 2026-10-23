@@ -1,5 +1,5 @@
 import { Ajv } from "ajv";
-import type { Diagnostic, McpConfig, McpServer } from "../core/types.js";
+import type { Diagnostic, HarnessId, McpConfig, McpSelection, McpServer } from "../core/types.js";
 import { isJsonObject } from "./json.js";
 import { harnessIds, validateFields } from "./schema.js";
 
@@ -86,6 +86,60 @@ export function readMcp(
     ...(result.value ? { mcp: { ...result.value, file } } : {}),
     diagnostics: result.diagnostics,
   };
+}
+
+function selected(name: string, selection: McpSelection, harness: HarnessId): boolean {
+  const local = selection.harnesses[harness];
+  if (selection.disabled.includes(name) || local?.disabled.includes(name)) return false;
+  const enabled = local?.enabled.length ? local.enabled : selection.enabled;
+  return enabled.length === 0 || enabled.includes(name);
+}
+
+/** Apply global and per-harness server selection without changing the source config. */
+export function selectMcp(mcp: McpConfig, selection: McpSelection): McpConfig {
+  const names = new Set([
+    ...Object.keys(mcp.mcpServers),
+    ...Object.values(mcp.harnessOverrides).flatMap((overrides) => Object.keys(overrides ?? {})),
+  ]);
+  const removed = new Set(
+    [...names].filter((name) => !harnessIds.some((harness) => selected(name, selection, harness))),
+  );
+  const mcpServers: Record<string, McpServer> = {};
+  for (const [name, value] of Object.entries(mcp.mcpServers)) {
+    if (!removed.has(name))
+      Object.defineProperty(mcpServers, name, {
+        value,
+        enumerable: true,
+        configurable: true,
+        writable: true,
+      });
+  }
+  const harnessOverrides: Partial<Record<HarnessId, Readonly<Record<string, McpServer | null>>>> =
+    {};
+  for (const harness of harnessIds) {
+    const existing = mcp.harnessOverrides[harness];
+    const overrides: Record<string, McpServer | null> = {};
+    for (const [name, value] of Object.entries(existing ?? {})) {
+      if (!removed.has(name))
+        Object.defineProperty(overrides, name, {
+          value,
+          enumerable: true,
+          configurable: true,
+          writable: true,
+        });
+    }
+    for (const name of names) {
+      if (!removed.has(name) && !selected(name, selection, harness))
+        Object.defineProperty(overrides, name, {
+          value: null,
+          enumerable: true,
+          configurable: true,
+          writable: true,
+        });
+    }
+    if (existing || Object.keys(overrides).length) harnessOverrides[harness] = overrides;
+  }
+  return { ...mcp, mcpServers, harnessOverrides };
 }
 
 /** A null per-harness override removes the complete server, never a nested field. */
