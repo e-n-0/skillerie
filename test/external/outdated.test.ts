@@ -76,7 +76,7 @@ it("lists semantic version tags in numeric order when newer tags are available",
         sha: sample.initial,
         status: "behind",
         newerTags: ["v1.4.0", "v1.10.0-beta.1", "v1.10.0"],
-        message: "v1.2.0 -> v1.10.0 available; changed: review (SKILL.md)",
+        message: "v1.2.0 -> v1.10.0 available; changed: review (SKILL.md); run skillerie update",
       },
     ],
   });
@@ -125,7 +125,7 @@ it.each([
   // Then: pins report the head rather than being mistaken for branch names.
   expect(result.code).toBe(moved ? 1 : 0);
   const message = moved
-    ? `default branch head ${head.slice(0, 8)} differs from pinned ${sample.initial.slice(0, 8)}; changed: review (SKILL.md)`
+    ? `default branch head ${head.slice(0, 8)} differs from pinned ${sample.initial.slice(0, 8)}; changed: review (SKILL.md); run skillerie update`
     : "up to date";
   if (json) {
     expect(JSON.parse(result.stdout)).toMatchObject({

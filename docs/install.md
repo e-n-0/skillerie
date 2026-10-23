@@ -91,7 +91,19 @@ Queries upstream for every `skills.external` entry and compares it with the acti
 
 When upstream has moved, `outdated` fetches the newer commit into the external cache, the same way `install` does, and compares the entry's selected skills file by file. The line then ends with what changed, for example `changed: review (SKILL.md, scripts/check.sh), audit (added)`, or with `no changes to review, release` when upstream moved without touching them. An entry only counts as behind when a selected skill changed. If the newer commit can't be fetched, a `external.changes` warning explains why and the entry falls back to the commit comparison.
 
-Human output has one line per entry. JSON includes `entries`, `diagnostics`, and `exitCode`; each entry has its ref, baseline `sha`, `latestSha`, `newerTags`, `status`, `outdated` boolean, and message, plus `skills` (each with `name`, `status` of `changed`, `unchanged`, `added` or `removed`, and the changed `files`) when upstream moved. Exit status is 0 when current, 1 when any selected skill changed upstream, and 2 on errors. The command adds fetched commits to the external cache but does not update the cache index or active generation.
+Human output has one line per entry. Pinned entries that changed end with `run skillerie update`, and floating ones with `run install`. JSON includes `entries`, `diagnostics`, and `exitCode`; each entry has its `index` in `skills.external`, ref, baseline `sha`, `latestSha`, `newerTags`, `status`, `outdated` boolean, and message, plus `skills` (each with `name`, `status` of `changed`, `unchanged`, `added` or `removed`, and the changed `files`) when upstream moved. Exit status is 0 when current, 1 when any selected skill changed upstream, and 2 on errors. The command adds fetched commits to the external cache but does not update the cache index or active generation.
+
+### update
+
+```sh
+skillerie update [skill...] [--repo <dir>] [--json]
+```
+
+Runs the same comparison as `outdated`, then bumps every pinned external entry whose selected skills changed: a full SHA pin moves to the default branch head, and a tag pin moves to the newest semantic-version tag. Name skills to limit the update to the entries that contain them.
+
+Only the pinned value changes in `skillerie.yaml`: the `ref`, or the commit inside a `/tree/<ref>/...` URL. Comments, quoting and the rest of the file stay as they are. Entries that follow a branch or the default branch aren't rewritten; they're listed as `FOLLOWS`, because `install` already picks up their new commit.
+
+Human output prints `UPDATED <url> <old> -> <new>; changed: ...` for each bumped entry. JSON has `updated`, `followed`, `diagnostics`, and `exitCode`. Review the diff, then run `skillerie install` to apply it. Exit status is 0 on success and 2 on errors.
 
 ### uninstall
 

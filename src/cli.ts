@@ -5,7 +5,15 @@ import { existsSync, realpathSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Diagnostic } from "./core/types.js";
-import { hasErrors, outdatedRepo, runLifecycle, syncRepo, validateRepo } from "./engine/index.js";
+import {
+  hasErrors,
+  outdatedRepo,
+  runLifecycle,
+  syncRepo,
+  updateRepo,
+  validateRepo,
+} from "./engine/index.js";
+import { describeChanges } from "./engine/external/changes.js";
 import type { EngineOptions, OutdatedEntry } from "./engine/index.js";
 import { isHarness } from "./engine/render.js";
 import { ENGINE_VERSION } from "./version.js";
@@ -245,6 +253,41 @@ export async function runCli(
       }
     });
   }
+
+  program
+    .command("update [skills...]")
+    .description("Bump pinned external skills whose skills changed upstream")
+    .option("--repo <dir>", "Config repository", process.cwd())
+    .option("--profile <name>", "Profile to use; defaults to the first one in skillerie.yaml")
+    .action(async (skills: string[], _options: unknown, command: Command) => {
+      const options = command.optsWithGlobals<{
+        readonly repo: string;
+        readonly json?: boolean;
+        readonly profile?: string;
+      }>();
+      const result = await updateRepo(options.repo, {
+        ...dependencies,
+        skills,
+        ...(options.profile === undefined ? {} : { profile: options.profile }),
+      });
+      exitCode = result.exitCode;
+      if (options.json) stdout(`${JSON.stringify(result)}\n`);
+      else {
+        for (const entry of result.updated)
+          stdout(
+            `UPDATED ${entry.url} ${entry.from.slice(0, 12)} -> ${entry.to.slice(0, 12)}; changed: ${describeChanges(entry.skills)}\n`,
+          );
+        for (const entry of result.followed) stdout(`FOLLOWS ${entry.url} ${entry.message}\n`);
+        for (const diagnostic of result.diagnostics)
+          stderr(`${formatDiagnostic(diagnostic, color)}\n`);
+        if (result.exitCode === 0)
+          stdout(
+            result.updated.length
+              ? "Updated skillerie.yaml; review the diff, then run skillerie install.\n"
+              : "No pinned external skill has changes to update.\n",
+          );
+      }
+    });
 
   program
     .command("init [dir]")

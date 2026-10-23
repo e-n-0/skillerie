@@ -37,7 +37,7 @@ flowchart LR
 - Write a skill once in plain Markdown. skillerie translates tool names, question tools, sub-agents and skill references into what each harness understands.
 - Keep each harness's settings (`opencode.jsonc`, Codex `config.toml`, OMO and Pi settings), plugins, extensions and other files in the same repo. skillerie merges them with what it generates, so a new machine gets your exact setup with one `install`.
 - Keep work and personal setups in one repo with [profiles](docs/config.md#profiles), then pick one with `install --profile <name>`.
-- Load community skills straight from GitHub, pinned to a tag or commit, and run `skillerie outdated` to see when upstream moves.
+- Load community skills straight from GitHub, pinned to a tag or commit. `skillerie outdated` shows which of them changed upstream, and `skillerie update` bumps the pins.
 - Dry-run every install. skillerie backs up anything it replaces, leaves your manual edits alone, and `skillerie uninstall` undoes it all.
 - `validate` catches broken references and invalid frontmatter, and `doctor` has Codex and OpenCode check the config skillerie renders for them.
 

@@ -16,6 +16,8 @@ import { ExternalError, parseExternalUrl, type ExternalUrl } from "./external/ur
 import { hasErrors, type EngineOptions } from "./types.js";
 
 export interface OutdatedEntry extends ExternalRevision {
+  /** Position of the entry in `skills.external`. */
+  readonly index: number;
   readonly kind: "tag" | "branch" | "sha" | "default";
   readonly latestSha: string;
   readonly newerTags: readonly string[];
@@ -112,7 +114,10 @@ export async function outdatedRepo(
             .sort((a, b) => compareSemverTags(a, b) ?? 0);
           const latest = newerTags.at(-1);
           latestSha = tags.find((tag) => tag.name === latest)?.sha ?? remote.sha;
-          if (latest) head = `${url.ref ?? ""} -> ${latest} available`;
+          if (latest) {
+            head = `${url.ref ?? ""} -> ${latest} available`;
+            action = "run skillerie update";
+          }
           break;
         }
         case "sha": {
@@ -122,8 +127,10 @@ export async function outdatedRepo(
             path: url.path,
           };
           latestSha = (await queryRemote(defaultUrl, env)).sha;
-          if (sha !== latestSha)
+          if (sha !== latestSha) {
             head = `default branch head ${latestSha.slice(0, 8)} differs from pinned ${sha.slice(0, 8)}`;
+            action = "run skillerie update";
+          }
           break;
         }
         case "branch":
@@ -170,6 +177,7 @@ export async function outdatedRepo(
               ? [head, `changed: ${changed}`, action].filter(Boolean).join("; ")
               : `${head}; no changes to ${skills.map((skill) => skill.name).join(", ") || "the selected skills"}`;
       entries.push({
+        index,
         url: input.url,
         ...(url.ref === undefined ? {} : { ref: url.ref }),
         path: url.path,
