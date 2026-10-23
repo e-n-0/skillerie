@@ -89,7 +89,8 @@ it("reports the package.json version when the release job re-versions the packag
   } finally {
     await rm(pkg, { recursive: true, force: true });
   }
-});
+  // Copies the built package and starts Node, which can exceed the default under a full parallel run.
+}, 20_000);
 
 it("exits zero when the built executable validates the sample", async () => {
   // Given: the compiled CLI and an isolated sample repository.
