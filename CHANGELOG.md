@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.13 - 2026-10-23
+
+### Features
+
+- `skillerie outdated` prints a readable table of changed skills with short source names, lists unchanged skills on one line, says once what to run next, and shows progress in a terminal while it checks and fetches sources. (#12)
+
 ## 0.0.12 - 2026-10-23
 
 ### Features
