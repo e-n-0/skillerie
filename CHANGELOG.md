@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.11 - 2026-10-23
+
+### Features
+
+- `skillerie outdated` compares the skills you use between your pinned commit and upstream, lists the files that changed, and only reports an entry as behind when one of its selected skills changed. (#10)
+
 ## 0.0.10 - 2026-10-23
 
 ### Features
