@@ -1,0 +1,4 @@
+type: feat
+description: >-
+  New `skillerie update` command bumps pinned external skills whose skills
+  changed upstream, editing only the pinned ref in skillerie.yaml.
