@@ -1,0 +1,5 @@
+type: feat
+description: >-
+  `skillerie install` prints one summary row per harness home instead of one
+  line per file, groups warnings by code, shows progress in a terminal, and adds
+  --verbose to list every file.
