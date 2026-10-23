@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.14 - 2026-10-23
+
+### Features
+
+- `skillerie install` prints one summary row per harness home instead of one line per file, groups warnings by code, shows progress in a terminal, and adds --verbose to list every file. (#13)
+
 ## 0.0.13 - 2026-10-23
 
 ### Features
