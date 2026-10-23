@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.16 - 2026-10-23
+
+### Features
+
+- `validate`, `sync` and `doctor` group warnings by code and end with a short summary, `doctor` hides passed checks unless --verbose, `update` prints a table of bumped sources, and long-running commands show progress in a terminal. (#15)
+
 ## 0.0.15 - 2026-10-23
 
 ### Features
