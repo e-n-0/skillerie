@@ -6,7 +6,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Diagnostic } from "./core/types.js";
 import { hasErrors, outdatedRepo, runLifecycle, syncRepo, validateRepo } from "./engine/index.js";
-import type { EngineOptions } from "./engine/index.js";
+import type { EngineOptions, OutdatedEntry } from "./engine/index.js";
 import { isHarness } from "./engine/render.js";
 import { ENGINE_VERSION } from "./version.js";
 import { InstallError } from "./install/index.js";
@@ -14,7 +14,7 @@ import { InstallError } from "./install/index.js";
 export interface CliOptions extends EngineOptions {
   readonly stdout?: (text: string) => void;
   readonly stderr?: (text: string) => void;
-  /** Colors doctor diagnostics; defaults to whether the real stderr supports colors. */
+  /** Colors doctor and outdated output; defaults to whether the real output stream supports colors. */
   readonly color?: boolean;
 }
 
@@ -41,6 +41,13 @@ export function formatDiagnostic(diagnostic: Diagnostic, color = false): string 
   return `${style(SEVERITY_STYLE[diagnostic.severity], diagnostic.severity)} ${style("2", where)} ${style("90", diagnostic.code)} ${diagnostic.message}`;
 }
 
+/** Outdated output has one line per external skill: URL, ref, then its status message. */
+export function formatOutdated(entry: OutdatedEntry, color = false): string {
+  const ref = entry.ref ?? "latest";
+  if (!color) return `${entry.url} ${ref} ${entry.message}`;
+  return `${entry.url} ${style("2", ref)} ${style(entry.outdated ? "1;33" : "32", entry.message)}`;
+}
+
 /** Injectable engine dependencies exercise the same command path without global mocks. */
 export async function runCli(
   argv: readonly string[] = process.argv.slice(2),
@@ -53,6 +60,11 @@ export async function runCli(
     (dependencies.stderr === undefined &&
       process.stderr.isTTY === true &&
       process.stderr.hasColors());
+  const colorOut =
+    dependencies.color ??
+    (dependencies.stdout === undefined &&
+      process.stdout.isTTY === true &&
+      process.stdout.hasColors());
   let exitCode = 0;
   const program = new Command()
     .name("skillerie")
@@ -155,9 +167,9 @@ export async function runCli(
       exitCode = result.exitCode;
       if (options.json) stdout(`${JSON.stringify(result)}\n`);
       else {
-        for (const entry of result.entries)
-          stdout(`${entry.url} ${entry.ref ?? "latest"} ${entry.message}\n`);
-        for (const diagnostic of result.diagnostics) stderr(`${formatDiagnostic(diagnostic)}\n`);
+        for (const entry of result.entries) stdout(`${formatOutdated(entry, colorOut)}\n`);
+        for (const diagnostic of result.diagnostics)
+          stderr(`${formatDiagnostic(diagnostic, color)}\n`);
       }
     });
 
