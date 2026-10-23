@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.17 - 2026-10-23
+
+### Fixes
+
+- `skillerie status` now compares against the installed profile when no --profile is given, keeps reporting when a profile has TOML conflicts, and `install --force` describes taken-over definitions instead of printing a CONFLICT line. (#16)
+
 ## 0.0.16 - 2026-10-23
 
 ### Features
