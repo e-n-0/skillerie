@@ -1,6 +1,7 @@
 import { expect, it } from "vitest";
 import {
-  formatInstallDiagnostics,
+  formatTally,
+  formatGroupedDiagnostics,
   formatInstallReport,
   formatStatusReport,
 } from "../../src/cli.js";
@@ -189,11 +190,61 @@ it("groups warnings by code and keeps errors whole when install prints diagnosti
     },
   ];
   // When: install formats them without color.
-  const lines = formatInstallDiagnostics(diagnostics);
+  const lines = formatGroupedDiagnostics(diagnostics);
   // Then: the error is unchanged, the warnings share one line, and validate is suggested.
   expect(lines).toEqual([
     "error /home/alice/.codex install.lock Locked.",
     "warn engine.permission.unenforced (2): explorer, reviewer",
-    "Run skillerie validate to see each warning.",
+    "Add --verbose to see each warning.",
   ]);
+});
+
+it("counts errors, warnings and passed checks when a tally is printed", () => {
+  // Given: diagnostics of every severity.
+  const diagnostics = [
+    { severity: "error" as const, code: "a", message: "a" },
+    { severity: "warn" as const, code: "b", message: "b" },
+    { severity: "warn" as const, code: "b", message: "c" },
+    { severity: "info" as const, code: "c", message: "d" },
+  ];
+  // When: the tally is formatted.
+  const text = formatTally(diagnostics);
+  // Then: each severity is counted with the right plural.
+  expect(text).toBe("1 error, 2 warnings, 1 passed");
+});
+
+it("hides passed checks and names skills by folder when doctor prints diagnostics", () => {
+  // Given: a passed check and a warning raised from a skill's SKILL.md.
+  const diagnostics = [
+    { severity: "info" as const, code: "doctor.node.supported", message: "ok" },
+    {
+      severity: "warn" as const,
+      code: "doctor.bin.missing",
+      message: "x",
+      file: "/repo/skills/autotest-pr/SKILL.md",
+    },
+  ];
+  // When: doctor formats them without verbose output.
+  const lines = formatGroupedDiagnostics(diagnostics, { hideInfo: true });
+  // Then: the passed check is hidden and the warning names the skill folder.
+  expect(lines).toEqual([
+    "warn doctor.bin.missing (1): autotest-pr",
+    "Add --verbose to see each warning and passed check.",
+  ]);
+});
+
+it("shows the message when one file raised every warning of a code", () => {
+  // Given: two warnings with one code, both attributed to skillerie.yaml.
+  const diagnostics = ["a", "b"].map((name) => ({
+    severity: "warn" as const,
+    code: "external.offline",
+    message: `https://github.com/acme/${name}: External content is not cached; run install to fetch it.`,
+    file: "/repo/skillerie.yaml",
+  }));
+  // When: they are grouped.
+  const lines = formatGroupedDiagnostics(diagnostics);
+  // Then: the shared message replaces the repeated file name.
+  expect(lines[0]).toBe(
+    "warn external.offline (2): External content is not cached; run install to fetch it.",
+  );
 });

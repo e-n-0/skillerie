@@ -21,6 +21,7 @@ export async function validateRepo(
   options: EngineOptions = {},
 ): Promise<ValidationResult> {
   const env = { ...(options.env ?? process.env) };
+  options.onProgress?.("Loading configuration");
   const loaded = await loadConfig(repoDir, env, {
     ...(options.profile === undefined ? {} : { profile: options.profile }),
   });
@@ -33,6 +34,7 @@ export async function validateRepo(
     ...checkEngineVersion(config.engine, engineVersion, resolve(repoDir, "skillerie.yaml")),
   );
   if (hasErrors(diagnostics)) return { ...profile, diagnostics };
+  if (config.skills.external?.length) options.onProgress?.("Resolving external skills");
   const external = await resolveExternalSkills(config, env, {
     ...(options.offlineExternal === undefined ? {} : { offline: options.offlineExternal }),
   });
@@ -43,6 +45,7 @@ export async function validateRepo(
   diagnostics.push(...external.diagnostics);
   if (hasErrors(diagnostics))
     return { ...profile, diagnostics: externalDiagnostics(diagnostics, diagnosticSources) };
+  options.onProgress?.("Reading sources");
   const discovered = await discoverSources(repoDir, config, external.entries);
   diagnostics.push(...discovered.diagnostics);
   const source = discovered.model;
@@ -69,6 +72,7 @@ export async function validateRepo(
     });
     return { ...profile, diagnostics: externalDiagnostics(diagnostics, diagnosticSources) };
   }
+  options.onProgress?.("Checking requirements");
   const evaluated = await resolveRequirements(expanded.model, { env, os });
   const prior = new Set(diagnostics.map((item) => JSON.stringify(item)));
   diagnostics.push(

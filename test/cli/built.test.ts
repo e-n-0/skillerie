@@ -97,7 +97,8 @@ it("exits zero when the built executable validates the sample", async () => {
   // When: Node executes the packaged entry point.
   const result = await execute(args, sample.env);
   // Then: validation succeeds without diagnostics.
-  expect(result).toEqual({ code: 0, stdout: "", stderr: "" });
+  expect(result).toMatchObject({ code: 0, stderr: "" });
+  expect(result.stdout).toMatch(/^Valid: \d+ skills?, \d+ agents?, \d+ rules? for [a-z, ]+\.\n$/);
 });
 
 it("renders all four harness directories when the built CLI uses the default registry", async () => {
@@ -152,7 +153,7 @@ it("exits zero when the built check command observes fresh output", async () => 
   // When: the compiled command checks unchanged sources.
   const result = await injectedCommand(["sync", "--repo", sample.repo, "--check"]);
   // Then: freshness succeeds through the real process exit status.
-  expect(result).toEqual({ code: 0, stdout: "", stderr: "" });
+  expect(result).toEqual({ code: 0, stdout: "The active generation is up to date.\n", stderr: "" });
 });
 
 it("exits one when the built check command observes source drift", async () => {

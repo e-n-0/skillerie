@@ -105,7 +105,7 @@ it.each(["install", "status", "sync"] as const)(
     // When: the command prints its plan or comparison.
     const result = await command([name, ...args, "--repo", sample.repo]);
     // Then: the profile precedes every other stdout line.
-    expect(result.stdout.split("\n")[0]).toBe(name === "sync" ? "PROFILE work" : "Profile: work");
+    expect(result.stdout.split("\n")[0]).toBe("Profile: work");
   },
 );
 

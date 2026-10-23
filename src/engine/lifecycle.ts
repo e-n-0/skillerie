@@ -27,7 +27,6 @@ interface PreparedInstallation {
 
 async function manageRepo(repoDir: string, options: LifecycleOptions): Promise<LifecycleResult> {
   const env = { ...(options.env ?? process.env) };
-  options.onProgress?.("Loading configuration and skills");
   const validated = await validateRepo(repoDir, {
     ...options,
     env,

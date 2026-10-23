@@ -64,7 +64,7 @@ async function skillChanges(input: {
 
 export interface OutdatedOptions extends EngineOptions {
   /** Called before each entry is queried and before its commits are fetched for comparison. */
-  readonly onProgress?: (progress: {
+  readonly onSource?: (progress: {
     readonly phase: "query" | "fetch";
     readonly index: number;
     readonly total: number;
@@ -110,7 +110,7 @@ export async function outdatedRepo(
   const external = config.skills.external ?? [];
   for (const [index, input] of external.entries()) {
     const progress = { index, total: external.length, url: input.url };
-    options.onProgress?.({ phase: "query", ...progress });
+    options.onSource?.({ phase: "query", ...progress });
     try {
       const url = parseExternalUrl(input);
       const remote = await queryRemote(url, env);
@@ -162,7 +162,7 @@ export async function outdatedRepo(
       let skills: readonly SkillChange[] | undefined;
       if (head !== undefined && sha === latestSha) skills = [];
       else if (head !== undefined) {
-        options.onProgress?.({ phase: "fetch", ...progress });
+        options.onSource?.({ phase: "fetch", ...progress });
         skills = await skillChanges({
           url,
           input,

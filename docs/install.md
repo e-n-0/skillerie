@@ -10,25 +10,27 @@ All commands take `--repo <dir>` (default: the current directory) and the global
 
 When `skillerie.yaml` defines [profiles](config.md#profiles), `validate`, `sync`, `outdated`, `install`, `uninstall`, `status`, and `doctor` accept `--profile <name>`. Without it, the first profile in the file is used. An unknown name fails with `config.profile.unknown` and lists the profiles you can pick.
 
-When a profile is applied, `install`, `uninstall` and `status` start with `Profile: <name>`, `sync` prints `PROFILE <name>` as its first line, and the JSON output of every command except `outdated` has a `profile` field. Neither appears for a configuration without profiles.
+When a profile is applied, `install`, `uninstall`, `status` and `sync` start with `Profile: <name>`, and the JSON output of every command except `outdated` has a `profile` field. Neither appears for a configuration without profiles.
 
 ### validate
 
 ```sh
-skillerie validate
+skillerie validate [--verbose]
 ```
 
-Loads `skillerie.yaml`, discovers sources, evaluates `requires`, runs lint rules, and checks agent restrictions against each enabled harness. Diagnostics go to stderr as `<severity> <file>[:<line>|#<pointer>] <code> <message>`. Exit status is 1 when there is at least one error.
+Loads `skillerie.yaml`, discovers sources, evaluates `requires`, runs lint rules, and checks agent restrictions against each enabled harness. Diagnostics go to stderr as `<severity> <file>[:<line>|#<pointer>] <code> <message>`. Errors are always printed in full; warnings are grouped to one line per code, listing the files they come from, unless you pass `--verbose`. A valid configuration ends with a summary such as `Valid: 14 skills, 9 agents, 9 rules for opencode, codex.`; otherwise a count of errors and warnings follows. Exit status is 1 when there is at least one error.
+
+The other commands group warnings the same way, and `--verbose` shows each one.
 
 For external skills, diagnostic file locations use `<url>@<short-sha>/<path inside repository>` rather than the cache path. The same origin locations appear in JSON diagnostics and in the other commands.
 
 ### sync
 
 ```sh
-skillerie sync [--harness <h>] [--check]
+skillerie sync [--harness <h>] [--check] [--verbose]
 ```
 
-Validates, renders every enabled harness, writes a new generation to the cache, and points `current` at it. It doesn't touch harness homes. `--harness` renders one harness. `--check` renders into a temporary directory and compares it with `current` instead, reporting each difference as `sync.drift`; it exits 1 when anything differs.
+Validates, renders every enabled harness, writes a new generation to the cache, and points `current` at it, then prints `Generated generation <short-hash>.` (`--verbose` prints the full path). It doesn't touch harness homes. `--harness` renders one harness. `--check` renders into a temporary directory and compares it with `current` instead; it exits 1 when anything differs and prints how many generated files differ. `--verbose` lists each difference as a `sync.drift` error.
 
 ### install
 
@@ -106,7 +108,7 @@ Runs the same comparison as `outdated`, then bumps every pinned external entry w
 
 Only the pinned value changes in `skillerie.yaml`: the `ref`, or the commit inside a `/tree/<ref>/...` URL. Comments, quoting and the rest of the file stay as they are. Entries that follow a branch or the default branch aren't rewritten; they're listed as `FOLLOWS`, because `install` already picks up their new commit.
 
-Human output prints `UPDATED <url> <old> -> <new>; changed: ...` for each bumped entry. JSON has `updated`, `followed`, `diagnostics`, and `exitCode`. Review the diff, then run `skillerie install` to apply it. Exit status is 0 on success and 2 on errors.
+Human output lists each bumped source with its old and new commit or tag and the skills that changed, then the sources that follow a branch. JSON has `updated`, `followed`, `diagnostics`, and `exitCode`. Review the diff, then run `skillerie install` to apply it. Exit status is 0 on success and 2 on errors.
 
 ### uninstall
 
@@ -122,7 +124,7 @@ Reads each configured harness's manifest and undoes the install. It prints one r
 skillerie doctor
 ```
 
-Reports, for each enabled harness: whether its CLI is on `PATH`, its version against the adapter's supported range, whether its home and agent directory are writable, and, when the CLI is installed, whether the harness accepts the rendered configuration (a headless check through the harness CLI that writes nothing to your homes). It also checks the Node version, every binary named in a `requires.bin`, and skills in `~/.agents/skills` that shadow managed skills. A missing harness CLI is informational. Exit status is 1 only for errors, such as an unwritable home.
+Reports, for each enabled harness: whether its CLI is on `PATH`, its version against the adapter's supported range, whether its home and agent directory are writable, and, when the CLI is installed, whether the harness accepts the rendered configuration (a headless check through the harness CLI that writes nothing to your homes). It also checks the Node version, every binary named in a `requires.bin`, and skills in `~/.agents/skills` that shadow managed skills. A missing harness CLI is informational. Passed checks are hidden and warnings are grouped; `--verbose` shows each one. The last line counts errors, warnings and passed checks. Exit status is 1 only for errors, such as an unwritable home.
 
 External inspection stays offline: it reads cached skills and reports each entry's installed ref and short SHA, with a hint to run `skillerie outdated` for an upstream check.
 

@@ -8,6 +8,7 @@ interface InitDependencies {
   readonly engineVersion?: string;
   readonly stdout: (text: string) => void;
   readonly stderr: (text: string) => void;
+  readonly color?: boolean;
 }
 
 /** Handle init output using the CLI's captured environment and output streams. */
@@ -40,15 +41,21 @@ export async function runInit(
       `Cannot initialize; conflicting paths:\n${result.conflicts.map((name) => `  ${name}`).join("\n")}\nUse --force to replace existing scaffold files.\n`,
     );
   } else {
+    const bold = (text: string) => (dependencies.color ? `\x1b[1m${text}\x1b[0m` : text);
+    // Quote the directory only when the shell needs it.
+    const directory = /^[\w./~-]+$/.test(result.directory)
+      ? result.directory
+      : `'${result.directory.replaceAll("'", "'\\''")}'`;
     dependencies.stdout(
       [
-        `Initialized ${result.directory}`,
+        `${dependencies.color ? "\x1b[32mInitialized\x1b[0m" : "Initialized"} ${result.directory}`,
+        "",
         "Next steps:",
-        `  cd '${result.directory.replaceAll("'", "'\\''")}'`,
-        "  npm install",
-        "  npx skillerie validate",
-        "  npx skillerie sync",
-        "  npx skillerie install --check",
+        `  ${bold(`cd ${directory}`)}`,
+        `  ${bold("npm install")}`,
+        `  ${bold("npx skillerie validate")}`,
+        `  ${bold("npx skillerie sync")}`,
+        `  ${bold("npx skillerie install --check")}`,
         "",
       ].join("\n"),
     );
