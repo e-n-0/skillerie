@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.12 - 2026-10-23
+
+### Features
+
+- New `skillerie update` command bumps pinned external skills whose skills changed upstream, editing only the pinned ref in skillerie.yaml. (#11)
+
 ## 0.0.11 - 2026-10-23
 
 ### Features
