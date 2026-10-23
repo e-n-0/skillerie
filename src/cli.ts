@@ -2,7 +2,7 @@
 import { Command } from "commander";
 import { CommanderError, Option } from "commander";
 import { existsSync, realpathSync } from "node:fs";
-import { resolve } from "node:path";
+import { basename, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Diagnostic } from "./core/types.js";
 import {
@@ -14,7 +14,12 @@ import {
   validateRepo,
 } from "./engine/index.js";
 import { describeChanges } from "./engine/external/changes.js";
-import type { EngineOptions, OutdatedEntry, OutdatedResult } from "./engine/index.js";
+import type {
+  EngineOptions,
+  LifecycleResult,
+  OutdatedEntry,
+  OutdatedResult,
+} from "./engine/index.js";
 import { externalRepositoryUrl } from "./model/external.js";
 import { isHarness } from "./engine/render.js";
 import { ENGINE_VERSION } from "./version.js";
@@ -130,6 +135,113 @@ export function formatOutdatedReport(result: OutdatedResult, color = false): str
   if (floating)
     lines.push(
       `Run ${paint("1", "skillerie install")} to pick up ${floating === 1 ? "the source that follows" : `the ${floating} sources that follow`} a branch.`,
+    );
+  return `${lines.join("\n")}\n`;
+}
+
+const ACTION_LABELS = {
+  LINK: ["linked", "to link", "32"],
+  RELINK: ["relinked", "to relink", "36"],
+  MERGE: ["merged", "to merge", "36"],
+  SEED: ["seeded", "to seed", "36"],
+  BACKUP: ["backed up", "to back up", "33"],
+} as const;
+
+/** Errors in full; warnings grouped to one line per code, since validate shows each one. */
+export function formatInstallDiagnostics(
+  diagnostics: readonly Diagnostic[],
+  color = false,
+): readonly string[] {
+  const lines: string[] = [];
+  const warnings = new Map<string, string[]>();
+  for (const diagnostic of diagnostics) {
+    if (diagnostic.code === "merge.conflict") continue;
+    if (diagnostic.severity !== "warn") {
+      lines.push(formatDiagnostic(diagnostic, color));
+      continue;
+    }
+    const name = diagnostic.file ? basename(diagnostic.file).replace(/\.[^.]+$/, "") : "skillerie";
+    warnings.set(diagnostic.code, [...(warnings.get(diagnostic.code) ?? []), name]);
+  }
+  for (const [code, names] of warnings) {
+    const label = color ? style(SEVERITY_STYLE.warn, "warn") : "warn";
+    const detail = `${code} (${names.length}): ${[...new Set(names)].join(", ")}`;
+    lines.push(`${label} ${color ? style("2", detail) : detail}`);
+  }
+  const hint = "Run skillerie validate to see each warning.";
+  if (warnings.size) lines.push(color ? style("2", hint) : hint);
+  return lines;
+}
+
+/** Human install report: one summary row per harness home, details on request. */
+export function formatInstallReport(
+  result: LifecycleResult,
+  options: {
+    readonly check?: boolean;
+    readonly verbose?: boolean;
+    readonly color?: boolean;
+    readonly home?: string;
+  } = {},
+): string {
+  const paint = (code: string, text: string) => (options.color ? style(code, text) : text);
+  const short = (path: string) =>
+    options.home && (path === options.home || path.startsWith(`${options.home}/`))
+      ? `~${path.slice(options.home.length)}`
+      : path;
+  const lines: string[] = [];
+  if (result.profile !== undefined) lines.push(`${paint("1", "Profile:")} ${result.profile}`, "");
+  const width = Math.max(0, ...result.installations.map((item) => item.harness.length));
+  const homeWidth = Math.max(0, ...result.installations.map((item) => short(item.home).length));
+  let changed = 0;
+  for (const installation of result.installations) {
+    const counts = new Map<keyof typeof ACTION_LABELS, number>();
+    for (const action of installation.actions)
+      if (action.kind !== "SKIP") counts.set(action.kind, (counts.get(action.kind) ?? 0) + 1);
+    const parts = [...counts].map(([kind, count]) => {
+      const [done, planned, code] = ACTION_LABELS[kind];
+      return paint(code, `${count} ${options.check ? planned : done}`);
+    });
+    if (installation.userEdits.length)
+      parts.push(paint("1;31", `${installation.userEdits.length} edited by you`));
+    if (parts.length) changed += 1;
+    lines.push(
+      `  ${paint("1", installation.harness.padEnd(width))}  ${paint("2", short(installation.home).padEnd(homeWidth))}  ${parts.length ? parts.join(", ") : paint("32", "up to date")}`,
+    );
+    if (options.verbose)
+      for (const action of installation.actions)
+        if (action.kind !== "SKIP")
+          lines.push(`      ${paint("2", action.kind.padEnd(6))} ${short(action.target)}`);
+    for (const target of installation.userEdits)
+      lines.push(`      ${paint("31", "edited")} ${short(target)}`);
+  }
+  for (const diagnostic of result.diagnostics)
+    if (diagnostic.code === "merge.conflict")
+      // Kept verbatim: conflict lines are matched by scripts.
+      lines.push(`CONFLICT ${diagnostic.file ?? "config.toml"} ${diagnostic.message}`);
+  const drift = result.drift?.length ?? 0;
+  const edited = result.installations.some((item) => item.userEdits.length);
+  const total = result.installations.length;
+  lines.push("");
+  if (options.check) {
+    if (drift)
+      lines.push(paint("2", `${drift} generated files differ from the active generation.`));
+    lines.push(
+      changed || drift
+        ? `Run ${paint("1", "skillerie install")} to apply these changes${options.verbose ? "" : " (--verbose lists every file)"}.`
+        : paint("32", "Everything is installed and up to date."),
+    );
+  } else if (edited)
+    lines.push(
+      `${paint("1;31", "Some files were edited by you and left alone.")} Use ${paint("1", "--force")} to back them up and replace them.`,
+    );
+  else if (result.valid)
+    lines.push(
+      paint(
+        "32",
+        changed
+          ? `Installed into ${changed} of ${total} harness homes.`
+          : "Everything was already up to date.",
+      ),
     );
   return `${lines.join("\n")}\n`;
 }
@@ -293,6 +405,7 @@ export async function runCli(
       );
     if (name === "install")
       lifecycle
+        .option("--verbose", "List every file the install touches")
         .option("--check", "Print the install plan without writing")
         .option("--force", "Back up and replace user-edited managed paths")
         .option("--takeover", "Replace another repository's installation");
@@ -305,20 +418,40 @@ export async function runCli(
         readonly check?: boolean;
         readonly force?: boolean;
         readonly takeover?: boolean;
+        readonly verbose?: boolean;
       }>();
+      // A live status line on a terminal; resolving and rendering can take a while.
+      const live =
+        name === "install" &&
+        !options.json &&
+        dependencies.stderr === undefined &&
+        process.stderr.isTTY === true;
       const result = await runLifecycle(options.repo, {
         ...dependencies,
         command: name,
+        ...(live ? { onProgress: (message: string) => stderr(`\r\x1b[2K${message}...`) } : {}),
         ...(options.profile === undefined ? {} : { profile: options.profile }),
         ...(options.harness && isHarness(options.harness) ? { harness: options.harness } : {}),
         ...(options.check === undefined ? {} : { check: options.check }),
         ...(options.force === undefined ? {} : { force: options.force }),
         ...(options.takeover === undefined ? {} : { takeover: options.takeover }),
       });
+      if (live) stderr("\r\x1b[2K");
       exitCode = result.valid ? 0 : 1;
       if (options.json) stdout(`${JSON.stringify(result)}\n`);
-      else {
-        if ((name === "install" || name === "status") && result.profile !== undefined)
+      else if (name === "install") {
+        for (const line of formatInstallDiagnostics(result.diagnostics, color)) stderr(`${line}\n`);
+        const home = (dependencies.env ?? process.env)["HOME"];
+        stdout(
+          formatInstallReport(result, {
+            check: options.check === true,
+            verbose: options.verbose === true,
+            color: colorOut,
+            ...(home ? { home } : {}),
+          }),
+        );
+      } else {
+        if (name === "status" && result.profile !== undefined)
           stdout(`PROFILE ${result.profile}\n`);
         for (const diagnostic of result.diagnostics) {
           if (diagnostic.code === "merge.conflict")

@@ -11,6 +11,8 @@ export interface LifecycleOptions extends EngineOptions {
   readonly check?: boolean;
   readonly force?: boolean;
   readonly takeover?: boolean;
+  /** Called as each slow phase starts, with a short human description. */
+  readonly onProgress?: (message: string) => void;
 }
 
 export interface InstallLine {
