@@ -1,0 +1,5 @@
+type: feat
+description: >-
+  `skillerie outdated` compares the skills you use between your pinned commit
+  and upstream, lists the files that changed, and only reports an entry as
+  behind when one of its selected skills changed.
