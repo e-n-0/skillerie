@@ -325,7 +325,7 @@ The selected profile is merged into the base configuration. For the global selec
 - `overrides` are merged per name, and the profile's fields win.
 - `harnesses.<harness>.enabled` from the profile replaces the base value. A profile can enable a harness that the base doesn't list; it gets the default path.
 
-The install manifest records which profile was installed. When `status` runs with a different profile, it warns with `install.profile.mismatch` and tells you which `--profile` to pass.
+The install manifest records which profile was installed, and `status` compares against that profile unless you pass `--profile`. When you pass a different one, it warns with `install.profile.mismatch` and tells you which `--profile` matches what is installed.
 
 ### shared
 

@@ -177,7 +177,7 @@ export function formatGroupedDiagnostics(
       ? "skillerie"
       : basename(diagnostic.file) === "SKILL.md"
         ? basename(dirname(diagnostic.file))
-        : basename(diagnostic.file).replace(/\.[^.]+$/, "");
+        : basename(diagnostic.file).replace(/(.)\.[^.]+$/, "$1");
     warnings.set(diagnostic.code, [
       ...(warnings.get(diagnostic.code) ?? []),
       { name, message: diagnostic.message },
@@ -186,11 +186,15 @@ export function formatGroupedDiagnostics(
   for (const [code, entries] of warnings) {
     const label = color ? style(SEVERITY_STYLE.warn, "warn") : "warn";
     const names = [...new Set(entries.map((entry) => entry.name))];
-    // One source for every warning: its message says more than a repeated file name.
+    // When every warning says the same thing, the message says more than the file names.
+    const messages = new Set(entries.map((entry) => entry.message.replace(/^\S+:\/\/\S+: /, "")));
+    const [message = ""] = messages;
     const what =
-      names.length === 1 && entries.length > 1
-        ? (entries[0]?.message ?? "").replace(/^\S+:\/\/\S+: /, "")
-        : names.join(", ");
+      entries.length === 1
+        ? `${names[0] ?? ""}: ${message}`
+        : messages.size === 1
+          ? message
+          : names.join(", ");
     const detail = `${code} (${entries.length}): ${what}`;
     lines.push(`${label} ${color ? style("2", detail) : detail}`);
   }
@@ -312,10 +316,19 @@ export function formatInstallReport(
     for (const target of installation.userEdits)
       lines.push(`      ${paint("31", "edited")} ${short(target)}`);
   }
-  for (const diagnostic of result.diagnostics)
-    if (diagnostic.code === "merge.conflict")
+  for (const diagnostic of result.diagnostics) {
+    if (diagnostic.code !== "merge.conflict") continue;
+    if (diagnostic.severity === "error")
       // Kept verbatim: conflict lines are matched by scripts.
       lines.push(`CONFLICT ${diagnostic.file ?? "config.toml"} ${diagnostic.message}`);
+    else {
+      // --force takes the definition over; the user's version returns when skillerie lets go of it.
+      const key = diagnostic.message.split(" ")[0] ?? "";
+      lines.push(
+        `  ${paint("33", options.check ? "will take over" : "took over")} ${key} in ${short(diagnostic.file ?? "config.toml")}${paint("2", "; your version comes back when skillerie stops managing it")}`,
+      );
+    }
+  }
   const drift = result.drift?.length ?? 0;
   const edited = result.installations.some((item) => item.userEdits.length);
   const total = result.installations.length;

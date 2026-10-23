@@ -1,5 +1,5 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { runCli } from "../../src/cli.js";
 import { readManifest } from "../../src/install/storage.js";
@@ -170,7 +170,8 @@ it("persists the selected profile when install writes its manifest", async () =>
 });
 
 it.each([
-  { profile: undefined, mismatch: true },
+  { profile: undefined, mismatch: false },
+  { profile: "work", mismatch: true },
   { profile: "personal", mismatch: false },
 ] as const)(
   "compares the installed profile when status selects $profile",
@@ -186,7 +187,7 @@ it.each([
       "--json",
     ]);
     expect(installed.code, installed.stdout + installed.stderr).toBe(0);
-    // When: status compares the default or the same explicit profile.
+    // When: status runs without a profile, or with an explicit one.
     const result = await command([
       "status",
       "--repo",
@@ -194,7 +195,7 @@ it.each([
       ...(profile === undefined ? [] : ["--profile", profile]),
       "--json",
     ]);
-    // Then: only a different profile produces a located mismatch warning.
+    // Then: no profile means the installed one; only a different explicit profile warns.
     const expected = expect.objectContaining({
       severity: "warn",
       code: "install.profile.mismatch",
@@ -255,3 +256,55 @@ it.each(["install", "status", "uninstall"] as const)(
     expect(output.profile).toBe("personal");
   },
 );
+
+it("compares status with the installed profile after a forced takeover is restored", async () => {
+  // Given: a user-owned linear server that work takes over with --force and personal gives back.
+  await writeFile(
+    join(sample.repo, "skillerie.yaml"),
+    "version: 1\nharnesses:\n  codex:\n    enabled: true\nprofiles:\n  work: {}\n  personal:\n    mcp:\n      disabled: [linear]\n",
+  );
+  await writeFile(
+    join(sample.repo, "mcp.json"),
+    JSON.stringify({
+      mcpServers: {
+        linear: { url: "https://mcp.linear.app/mcp" },
+        docs: { url: "https://docs.example.com/mcp" },
+      },
+    }),
+  );
+  const config = join(String(sample.env["HOME"]), ".codex", "config.toml");
+  await mkdir(dirname(config), { recursive: true });
+  await writeFile(config, '[mcp_servers.linear]\nurl = "https://old.example.com"\n');
+  const work = await command(["install", "--repo", sample.repo, "--force"]);
+  expect(work.code, work.stderr).toBe(0);
+  expect(work.stdout).toContain("took over mcp_servers.linear");
+  expect(work.stdout).not.toContain("CONFLICT");
+  const personal = await command([
+    "install",
+    "--repo",
+    sample.repo,
+    "--force",
+    "--profile",
+    "personal",
+  ]);
+  expect(personal.code, personal.stderr).toBe(0);
+  expect(await readFile(config, "utf8")).toContain("https://old.example.com");
+  // When: status runs without a profile, then against the profile that is not installed.
+  const current = JSON.parse(
+    (await command(["status", "--repo", sample.repo, "--json"])).stdout,
+  ) as {
+    readonly profile?: string;
+    readonly clean?: boolean;
+    readonly diagnostics: readonly { readonly code: string }[];
+  };
+  const other = JSON.parse(
+    (await command(["status", "--repo", sample.repo, "--profile", "work", "--json"])).stdout,
+  ) as typeof current;
+  // Then: the installed profile is clean, and the other reports its conflict and the mismatch.
+  expect(current).toMatchObject({ profile: "personal", clean: true });
+  expect(current.diagnostics.map((item) => item.code)).not.toContain("merge.conflict");
+  expect(other).toMatchObject({ profile: "work", clean: false });
+  expect(other.diagnostics.map((item) => item.code)).toEqual(
+    expect.arrayContaining(["merge.conflict", "install.profile.mismatch"]),
+  );
+});

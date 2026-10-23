@@ -47,7 +47,7 @@ Validates, renders, plans, and applies. You don't need to run `sync` first.
 | `--profile <name>` | Install this [profile](config.md#profiles) instead of the first one. The manifest records it. |
 | `--check` | Print the plan and exit. No harness home is changed and no lock is taken; external resolution may populate its cache. |
 | `--verbose` | List every file under its harness, not just the counts |
-| `--force` | Back up and replace managed files you edited, instead of preserving them |
+| `--force` | Back up and replace managed files you edited, instead of preserving them, and take over TOML definitions you wrote that a managed block also defines. A taken-over definition comes back when skillerie stops managing that key, for example after switching to a profile without it. |
 | `--takeover` | Install into a home that another repository's manifest owns |
 
 The output has one row per harness home, with counts such as `12 linked, 1 backed up`, or `up to date`; `--check` says `to link` instead. Files you edited are always listed under their harness, and a last line says what happened or what to run next. With `--check`, differences between the active generation and a fresh render are summarized as a count. On a terminal, a status line on stderr shows each phase while it runs (loading, rendering, planning, installing). Paths under your home directory are shortened to `~`.
@@ -78,7 +78,7 @@ skillerie status
 
 Prints one row per enabled harness home: `not installed`, `installed from <repo>` when another repository owns it, `installed, N changes pending`, `installed, N edited by you` (each edited file is listed), or `installed, up to date`. A count of generated files that differ from a fresh render and a line saying what to run follow. Exit status is 0 only when everything is installed and current.
 
-If a home was installed with a different profile than the one `status` uses, it warns with `install.profile.mismatch`, for example `Installed with profile "work"; pass --profile work to compare against it.`
+Without `--profile`, `status` compares against the profile the homes were installed with, when they all recorded the same one; otherwise it uses the first profile. If you pass a different `--profile` than the installed one, it warns with `install.profile.mismatch`, for example `Installed with profile "work"; pass --profile work to compare against it.` A TOML conflict for that profile is reported in the comparison instead of stopping it.
 
 An `External skills:` section lists each external entry as `owner/repo`, its tag or branch (pinned commits aren't repeated), short commit and path, using the active generation's revisions when available. The JSON result includes the full revisions under `external`.
 

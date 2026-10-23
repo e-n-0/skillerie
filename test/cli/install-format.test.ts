@@ -228,7 +228,7 @@ it("hides passed checks and names skills by folder when doctor prints diagnostic
   const lines = formatGroupedDiagnostics(diagnostics, { hideInfo: true });
   // Then: the passed check is hidden and the warning names the skill folder.
   expect(lines).toEqual([
-    "warn doctor.bin.missing (1): autotest-pr",
+    "warn doctor.bin.missing (1): autotest-pr: x",
     "Add --verbose to see each warning and passed check.",
   ]);
 });
@@ -246,5 +246,45 @@ it("shows the message when one file raised every warning of a code", () => {
   // Then: the shared message replaces the repeated file name.
   expect(lines[0]).toBe(
     "warn external.offline (2): External content is not cached; run install to fetch it.",
+  );
+});
+
+it("describes a forced conflict as a takeover instead of asking for --force", () => {
+  // Given: a forced install that took over one user definition.
+  const report = result({
+    diagnostics: [
+      {
+        severity: "warn",
+        code: "merge.conflict",
+        file: `${home}/.codex/config.toml`,
+        message:
+          "mcp_servers.linear Use --force to back up this file and take ownership of the definition.",
+      },
+    ],
+  });
+  // When: the install report is formatted.
+  const text = formatInstallReport(report, { home });
+  // Then: it names the takeover and no longer prints a CONFLICT line.
+  expect(text).toContain(
+    "  took over mcp_servers.linear in ~/.codex/config.toml; your version comes back when skillerie stops managing it",
+  );
+  expect(text).not.toContain("CONFLICT");
+});
+
+it("keeps dotted home names and shows the message when one warning is grouped", () => {
+  // Given: a single mismatch warning located at a dotted harness home.
+  const diagnostics = [
+    {
+      severity: "warn" as const,
+      code: "install.profile.mismatch",
+      message: 'Installed with profile "personal"; pass --profile personal to compare against it.',
+      file: "/home/alice/.codex",
+    },
+  ];
+  // When: it is grouped.
+  const lines = formatGroupedDiagnostics(diagnostics);
+  // Then: the home keeps its name and the actionable message is shown.
+  expect(lines[0]).toBe(
+    'warn install.profile.mismatch (1): .codex: Installed with profile "personal"; pass --profile personal to compare against it.',
   );
 });

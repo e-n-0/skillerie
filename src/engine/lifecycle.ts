@@ -120,7 +120,12 @@ async function manageRepo(repoDir: string, options: LifecycleOptions): Promise<L
       });
     }
   }
-  if (hasErrors(diagnostics)) return { ...profile, valid: false, diagnostics, installations };
+  // Status reports a conflict as part of the comparison instead of stopping at it.
+  const blocking =
+    options.command === "status"
+      ? diagnostics.filter((item) => item.code !== "merge.conflict")
+      : diagnostics;
+  if (hasErrors(blocking)) return { ...profile, valid: false, diagnostics, installations };
   const userEdits = installations.some((item) => item.userEdits.length > 0);
   if (options.command === "status") {
     for (const item of prepared) {
@@ -137,6 +142,7 @@ async function manageRepo(repoDir: string, options: LifecycleOptions): Promise<L
     const clean =
       !userEdits &&
       drift.length === 0 &&
+      !diagnostics.some((item) => item.code === "merge.conflict") &&
       prepared.every((item) => item.manifest && item.plan.actions.length === 0);
     const installed = await installedExternals(snapshot.config);
     return {
@@ -203,11 +209,38 @@ async function manageRepo(repoDir: string, options: LifecycleOptions): Promise<L
   };
 }
 
-export async function runLifecycle(
+/** The one profile every installed home of this repository recorded, if it still exists. */
+async function installedProfile(
   repoDir: string,
   options: LifecycleOptions,
+): Promise<string | undefined> {
+  const env = options.env ?? process.env;
+  const config = (await loadConfig(repoDir, env)).config;
+  if (config?.profile === undefined) return undefined;
+  const recorded = new Set<string>();
+  for (const harness of HARNESS_IDS) {
+    const home = config.harnesses[harness];
+    if (!home?.enabled) continue;
+    const manifest = await readManifest(home.path);
+    if (manifest?.profile !== undefined && manifest.repo.path === config.paths.repo)
+      recorded.add(manifest.profile);
+  }
+  const [profile] = recorded;
+  if (recorded.size !== 1 || profile === undefined || profile === config.profile) return undefined;
+  return (await loadConfig(repoDir, env, { profile })).config ? profile : undefined;
+}
+
+export async function runLifecycle(
+  repoDir: string,
+  requested: LifecycleOptions,
 ): Promise<LifecycleResult> {
+  let options = requested;
   try {
+    // Without --profile, status compares against what is installed rather than the default.
+    if (options.command === "status" && options.profile === undefined) {
+      const profile = await installedProfile(repoDir, options);
+      if (profile !== undefined) options = { ...options, profile };
+    }
     switch (options.command) {
       case "install":
       case "status":
