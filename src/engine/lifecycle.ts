@@ -27,6 +27,7 @@ interface PreparedInstallation {
 
 async function manageRepo(repoDir: string, options: LifecycleOptions): Promise<LifecycleResult> {
   const env = { ...(options.env ?? process.env) };
+  options.onProgress?.("Loading configuration and skills");
   const validated = await validateRepo(repoDir, {
     ...options,
     env,
@@ -75,6 +76,7 @@ async function manageRepo(repoDir: string, options: LifecycleOptions): Promise<L
     if (adapter.id !== harness)
       throw new InstallError("engine.adapter", `Adapter does not match harness ${harness}.`);
     const input = { model, snapshot, env };
+    options.onProgress?.(`Rendering ${harness}`);
     const rendered = await renderHarness(adapter, input);
     files.push(...rendered.files);
     diagnostics.push(...rendered.diagnostics);
@@ -93,6 +95,7 @@ async function manageRepo(repoDir: string, options: LifecycleOptions): Promise<L
   if (hasErrors(diagnostics)) return { ...profile, valid: false, diagnostics, installations };
   const prepared: PreparedInstallation[] = [];
   for (const install of selected) {
+    options.onProgress?.(`Planning ${install.harness}`);
     const manifest = await readManifest(install.harnessHome);
     try {
       const plan = await previewInstall(install, { root, files });
@@ -175,6 +178,7 @@ async function manageRepo(repoDir: string, options: LifecycleOptions): Promise<L
   await swapCurrent(snapshot.config.paths.cache, generation);
   const installed: InstallationResult[] = [];
   for (const item of prepared) {
+    options.onProgress?.(`Installing ${item.options.harness}`);
     const plan = await installRendered(item.options, { root, files });
     diagnostics.push(
       ...plan.findings.filter(

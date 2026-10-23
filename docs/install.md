@@ -10,7 +10,7 @@ All commands take `--repo <dir>` (default: the current directory) and the global
 
 When `skillerie.yaml` defines [profiles](config.md#profiles), `validate`, `sync`, `outdated`, `install`, `uninstall`, `status`, and `doctor` accept `--profile <name>`. Without it, the first profile in the file is used. An unknown name fails with `config.profile.unknown` and lists the profiles you can pick.
 
-When a profile is applied, `install`, `status`, and `sync` print `PROFILE <name>` as their first line, and the JSON output of every command except `outdated` has a `profile` field. Neither appears for a configuration without profiles.
+When a profile is applied, `install` starts with `Profile: <name>`, `status` and `sync` print `PROFILE <name>` as their first line, and the JSON output of every command except `outdated` has a `profile` field. Neither appears for a configuration without profiles.
 
 ### validate
 
@@ -33,7 +33,7 @@ Validates, renders every enabled harness, writes a new generation to the cache, 
 ### install
 
 ```sh
-skillerie install [--harness <h>] [--profile <name>] [--check] [--force] [--takeover]
+skillerie install [--harness <h>] [--profile <name>] [--check] [--verbose] [--force] [--takeover]
 ```
 
 Validates, renders, plans, and applies. You don't need to run `sync` first.
@@ -44,10 +44,13 @@ Validates, renders, plans, and applies. You don't need to run `sync` first.
 | `--harness <h>` | Install one enabled harness. Every enabled harness is still rendered into the new generation so other installed homes keep working. |
 | `--profile <name>` | Install this [profile](config.md#profiles) instead of the first one. The manifest records it. |
 | `--check` | Print the plan and exit. No harness home is changed and no lock is taken; external resolution may populate its cache. |
+| `--verbose` | List every file under its harness, not just the counts |
 | `--force` | Back up and replace managed files you edited, instead of preserving them |
 | `--takeover` | Install into a home that another repository's manifest owns |
 
-The plan prints one line per change:
+The output has one row per harness home, with counts such as `12 linked, 1 backed up`, or `up to date`; `--check` says `to link` instead. Files you edited are always listed under their harness, and a last line says what happened or what to run next. With `--check`, differences between the active generation and a fresh render are summarized as a count. On a terminal, a status line on stderr shows each phase while it runs (loading, rendering, planning, installing). Paths under your home directory are shortened to `~`.
+
+With `--verbose`, each change is listed under its harness:
 
 <!-- prettier-ignore -->
 | Line | Meaning |

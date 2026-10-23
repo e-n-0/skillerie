@@ -14,11 +14,12 @@ it("writes nothing when install check plans the first installation", async () =>
   );
   const before = await tree(suite.sandbox.root);
   // When: the real command performs a dry run.
-  const result = await suite.run(["install", "--check"]);
+  const result = await suite.run(["install", "--check", "--verbose"]);
   // Then: a nonempty readable plan is printed without any filesystem mutation.
   expect(result.code, result.stderr + result.stdout).toBe(1);
-  expect(result.stdout).toMatch(/^LINK /m);
-  expect(result.stdout).toMatch(/^MERGE /m);
+  expect(result.stdout).toMatch(/^ {6}LINK /m);
+  expect(result.stdout).toMatch(/^ {6}MERGE /m);
+  expect(result.stdout).toContain("Run skillerie install to apply these changes.");
   expect(await tree(suite.sandbox.root)).toEqual(before);
 }, 30_000);
 
