@@ -1,0 +1,4 @@
+type: feat
+description: >-
+  `skillerie doctor` colors severities and dims locations and codes when
+  printing to a terminal. Set NO_COLOR to turn it off.

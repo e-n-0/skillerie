@@ -12,11 +12,12 @@ afterEach(async () => {
   await sample.cleanup();
 });
 
-async function command(argv: readonly string[]) {
+async function command(argv: readonly string[], color?: boolean) {
   const output: string[] = [];
   const errors: string[] = [];
   const code = await runCli(argv, {
     env: sample.env,
+    ...(color === undefined ? {} : { color }),
     stdout: (text) => {
       output.push(text);
     },
@@ -85,4 +86,16 @@ it("rejects a disabled harness when install selects it", async () => {
     valid: false,
     diagnostics: expect.arrayContaining([expect.objectContaining({ code: "engine.harness" })]),
   });
+});
+
+it("colors doctor diagnostics only when color is enabled", async () => {
+  // Given: the same doctor run with and without color support.
+  const args = ["doctor", "--repo", sample.repo];
+  // When: doctor prints its diagnostics.
+  const colored = await command(args, true);
+  const plain = await command(args);
+  // Then: severities are styled with color, and plain output has no escape codes.
+  expect(colored.stderr).toContain("\x1b[1;36minfo\x1b[0m ");
+  expect(plain.stderr).not.toContain("\x1b[");
+  expect(plain.stderr).toMatch(/^info /m);
 });
