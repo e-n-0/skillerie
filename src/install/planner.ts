@@ -245,6 +245,7 @@ export class Planner {
       findings: this.findings,
       manifest: {
         version: 1,
+        ...(this.options.profile === undefined ? {} : { profile: this.options.profile }),
         ...(this.options.external?.length ? { external: this.options.external } : {}),
         repo: this.options.repo,
         harness: this.options.harness,

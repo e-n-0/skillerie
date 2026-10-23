@@ -9,12 +9,13 @@ import { lstat } from "node:fs/promises";
 import { resolve } from "node:path";
 import { captureFiles } from "./files.js";
 import { readLayer } from "./layer.js";
+import { resolveMcpServers, selectMcp } from "./mcp.js";
 import { resolveEntities } from "./merge.js";
 import { readExternalSkills } from "./external.js";
 
 export { parseFrontmatter } from "./frontmatter.js";
 export { evaluateRequires, type RequiresContext } from "./requires.js";
-export { resolveMcpServers } from "./mcp.js";
+export { resolveMcpServers, selectMcp };
 export { buildSnapshot } from "./snapshot.js";
 
 type DiscoveryConfig = ResolvedConfig & { readonly sources?: ResolvedSourcePaths };
@@ -78,7 +79,7 @@ export async function discoverSources(
     seeds: user.seeds,
     bin: user.bin,
     ...(user.instructions ? { instructions: user.instructions } : {}),
-    ...(user.mcp ? { mcp: user.mcp } : {}),
+    ...(user.mcp ? { mcp: config.mcp ? selectMcp(user.mcp, config.mcp) : user.mcp } : {}),
   };
   if (diagnostics.some((diagnostic) => diagnostic.severity === "error")) return { diagnostics };
   captureFiles(model, new Map([...user.files, ...imported.files]));

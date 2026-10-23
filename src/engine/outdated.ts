@@ -29,7 +29,9 @@ export async function outdatedRepo(
   options: EngineOptions = {},
 ): Promise<OutdatedResult> {
   const env = { ...(options.env ?? process.env) };
-  const loaded = await loadConfig(repoDir, env);
+  const loaded = await loadConfig(repoDir, env, {
+    ...(options.profile === undefined ? {} : { profile: options.profile }),
+  });
   const config = loaded.config;
   const diagnostics = [...loaded.diagnostics];
   const entries: OutdatedEntry[] = [];

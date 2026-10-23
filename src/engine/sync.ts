@@ -27,7 +27,8 @@ export async function syncRepo(repoDir: string, options: SyncOptions = {}): Prom
   const validated = await validateRepo(repoDir, { ...options, env });
   const { model, snapshot } = validated;
   const diagnostics: Diagnostic[] = [...validated.diagnostics];
-  if (!model || !snapshot || hasErrors(diagnostics)) return { diagnostics, drift: [] };
+  const profile = validated.profile === undefined ? {} : { profile: validated.profile };
+  if (!model || !snapshot || hasErrors(diagnostics)) return { ...profile, diagnostics, drift: [] };
   if (options.harness && snapshot.config.harnesses[options.harness]?.enabled !== true) {
     diagnostics.push({
       severity: "error",
@@ -36,7 +37,7 @@ export async function syncRepo(repoDir: string, options: SyncOptions = {}): Prom
       file: resolve(repoDir, "skillerie.yaml"),
       jsonPath: `/harnesses/${options.harness}`,
     });
-    return { diagnostics, drift: [] };
+    return { ...profile, diagnostics, drift: [] };
   }
   const selected = HARNESS_IDS.filter(
     (id) => snapshot.config.harnesses[id]?.enabled && (!options.harness || id === options.harness),
@@ -62,7 +63,7 @@ export async function syncRepo(repoDir: string, options: SyncOptions = {}): Prom
     files.push(...result.files);
     diagnostics.push(...result.diagnostics);
   }
-  if (hasErrors(diagnostics)) return { diagnostics, drift: [] };
+  if (hasErrors(diagnostics)) return { ...profile, diagnostics, drift: [] };
   const cache = snapshot.config.paths.cache;
   const current = join(cache, "current");
   if (!options.check) {

@@ -5,6 +5,7 @@ import { configDocument } from "./document.js";
 import { validateConfig } from "./input.js";
 import { normalizeConfig } from "./normalize.js";
 import { resolvePaths } from "./paths.js";
+import { applyProfile } from "./profiles.js";
 import type { LoadedConfig } from "./sources.js";
 import { expandConfigValues } from "./variables.js";
 
@@ -18,7 +19,11 @@ export interface LoadConfigResult {
 }
 
 /** Load YAML 1.2, reject duplicate keys, validate, default, and expand string values. */
-export async function loadConfig(repoDir: string, env: Environment): Promise<LoadConfigResult> {
+export async function loadConfig(
+  repoDir: string,
+  env: Environment,
+  options?: { readonly profile?: string },
+): Promise<LoadConfigResult> {
   const file = resolve(repoDir, "skillerie.yaml");
   let source: string;
   try {
@@ -62,7 +67,16 @@ export async function loadConfig(repoDir: string, env: Environment): Promise<Loa
       diagnostics: (validateConfig.errors ?? []).map(parsed.schemaDiagnostic),
     };
   }
-  const resolution = resolvePaths(repoDir, env, value);
+  const applied = applyProfile(value, options?.profile);
+  if (applied.config === undefined) {
+    return {
+      diagnostics: applied.diagnostics.map((item) => ({
+        ...item,
+        ...parsed.location(item.jsonPath ?? ""),
+      })),
+    };
+  }
+  const resolution = resolvePaths(repoDir, env, applied.config);
   if (resolution.diagnostics.length > 0) {
     return {
       diagnostics: resolution.diagnostics.map((item) => ({
@@ -71,7 +85,7 @@ export async function loadConfig(repoDir: string, env: Environment): Promise<Loa
       })),
     };
   }
-  const expanded = expandConfigValues(value, {
+  const expanded = expandConfigValues(applied.config, {
     repo: resolution.paths.repo,
     home: resolution.paths.home,
     paths: resolution.paths,
@@ -91,7 +105,14 @@ export async function loadConfig(repoDir: string, env: Environment): Promise<Loa
     };
   }
   return {
-    config: normalizeConfig(expandedValue, resolution, env),
+    config: normalizeConfig(
+      {
+        ...expandedValue,
+        ...(applied.profile === undefined ? {} : { profile: applied.profile }),
+      },
+      resolution,
+      env,
+    ),
     diagnostics: [],
   };
 }

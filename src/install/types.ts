@@ -6,6 +6,7 @@ export interface RepoIdentity {
 }
 
 export interface InstallOptions {
+  readonly profile?: string;
   readonly external?: readonly ExternalRevision[];
   readonly repo: RepoIdentity;
   readonly harness: HarnessId;
@@ -49,6 +50,7 @@ export interface ManagedEntry {
 }
 
 export interface Manifest {
+  readonly profile?: string;
   readonly external?: readonly ExternalRevision[];
   readonly version: 1;
   readonly repo: RepoIdentity;

@@ -21,15 +21,18 @@ export async function validateRepo(
   options: EngineOptions = {},
 ): Promise<ValidationResult> {
   const env = { ...(options.env ?? process.env) };
-  const loaded = await loadConfig(repoDir, env);
+  const loaded = await loadConfig(repoDir, env, {
+    ...(options.profile === undefined ? {} : { profile: options.profile }),
+  });
   const diagnostics = [...loaded.diagnostics];
   const config = loaded.config;
   if (!config || hasErrors(diagnostics)) return { diagnostics };
+  const profile = config.profile === undefined ? {} : { profile: config.profile };
   const engineVersion = options.engineVersion ?? ENGINE_VERSION;
   diagnostics.push(
     ...checkEngineVersion(config.engine, engineVersion, resolve(repoDir, "skillerie.yaml")),
   );
-  if (hasErrors(diagnostics)) return { diagnostics };
+  if (hasErrors(diagnostics)) return { ...profile, diagnostics };
   const external = await resolveExternalSkills(config, env, {
     ...(options.offlineExternal === undefined ? {} : { offline: options.offlineExternal }),
   });
@@ -39,12 +42,12 @@ export async function validateRepo(
   }));
   diagnostics.push(...external.diagnostics);
   if (hasErrors(diagnostics))
-    return { diagnostics: externalDiagnostics(diagnostics, diagnosticSources) };
+    return { ...profile, diagnostics: externalDiagnostics(diagnostics, diagnosticSources) };
   const discovered = await discoverSources(repoDir, config, external.entries);
   diagnostics.push(...discovered.diagnostics);
   const source = discovered.model;
   if (!source || hasErrors(diagnostics))
-    return { diagnostics: externalDiagnostics(diagnostics, diagnosticSources) };
+    return { ...profile, diagnostics: externalDiagnostics(diagnostics, diagnosticSources) };
   diagnostics.push(...lintModel(source, config));
   diagnostics.push(...(await lintJsonSources(source)));
   const expanded = expandSources(source, {
@@ -54,7 +57,7 @@ export async function validateRepo(
   });
   diagnostics.push(...expanded.diagnostics);
   if (hasErrors(diagnostics))
-    return { diagnostics: externalDiagnostics(diagnostics, diagnosticSources) };
+    return { ...profile, diagnostics: externalDiagnostics(diagnostics, diagnosticSources) };
   const os = options.os ?? process.platform;
   if (os !== "darwin" && os !== "linux") {
     diagnostics.push({
@@ -64,7 +67,7 @@ export async function validateRepo(
       file: resolve(repoDir, "skillerie.yaml"),
       jsonPath: "",
     });
-    return { diagnostics: externalDiagnostics(diagnostics, diagnosticSources) };
+    return { ...profile, diagnostics: externalDiagnostics(diagnostics, diagnosticSources) };
   }
   const evaluated = await resolveRequirements(expanded.model, { env, os });
   const prior = new Set(diagnostics.map((item) => JSON.stringify(item)));
@@ -84,10 +87,11 @@ export async function validateRepo(
   }
   diagnostics.push(...restrictionDiagnostics(adapters, evaluated.model));
   if (hasErrors(diagnostics))
-    return { diagnostics: externalDiagnostics(diagnostics, diagnosticSources) };
+    return { ...profile, diagnostics: externalDiagnostics(diagnostics, diagnosticSources) };
   // Snapshot the discovered inventory, whose captured bytes predate filtering/expansion.
   const snapshot = await buildSnapshot(config, source, evaluated.requires, engineVersion);
   return {
+    ...profile,
     diagnostics: externalDiagnostics(diagnostics, diagnosticSources),
     model: evaluated.model,
     snapshot,

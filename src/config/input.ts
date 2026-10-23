@@ -7,6 +7,7 @@ import type {
   HarnessMap,
   JsonObject,
   LintSeverity,
+  McpSelection,
   ResolvedHarnessConfig,
 } from "../core/types.js";
 import type { SourcePathInput } from "./sources.js";
@@ -27,6 +28,8 @@ export interface ConfigInput {
   readonly agents?: EntityInput;
   readonly rules?: EntityInput;
   readonly assets?: EntityInput;
+  readonly mcp?: McpSelectionInput;
+  readonly profiles?: Readonly<Record<string, ProfileInput>>;
   readonly shared?: { readonly agentsSkillsDir?: "dedupe" | "preserve" };
   readonly lint?: {
     readonly descriptionPrefix?: SeverityInput & { readonly value?: string };
@@ -44,6 +47,20 @@ export interface ConfigInput {
 
 export interface EntityInput extends SelectionInput {
   readonly harnesses?: HarnessMap<SelectionInput>;
+}
+
+export interface McpSelectionInput extends Partial<Pick<McpSelection, "enabled" | "disabled">> {
+  readonly harnesses?: HarnessMap<Partial<Pick<McpSelection, "enabled" | "disabled">>>;
+}
+
+/** Profiles select existing content without changing paths or adding external skills. */
+export interface ProfileInput {
+  readonly harnesses?: HarnessMap<Pick<HarnessInput, "enabled">>;
+  readonly skills?: EntityInput;
+  readonly agents?: EntityInput;
+  readonly rules?: EntityInput;
+  readonly assets?: EntityInput;
+  readonly mcp?: McpSelectionInput;
 }
 
 const schema: object = JSON.parse(

@@ -66,12 +66,26 @@ export async function runCli(
     .command("validate")
     .description("Validate configuration and source content")
     .option("--repo <dir>", "Config repository", process.cwd())
+    .option("--profile <name>", "Profile to use; defaults to the first one in skillerie.yaml")
     .action(async (_options: unknown, command: Command) => {
-      const options = command.optsWithGlobals<{ readonly repo: string; readonly json?: boolean }>();
-      const result = await validateRepo(options.repo, dependencies);
+      const options = command.optsWithGlobals<{
+        readonly repo: string;
+        readonly json?: boolean;
+        readonly profile?: string;
+      }>();
+      const result = await validateRepo(options.repo, {
+        ...dependencies,
+        ...(options.profile === undefined ? {} : { profile: options.profile }),
+      });
       exitCode = hasErrors(result.diagnostics) ? 1 : 0;
       if (options.json) {
-        stdout(`${JSON.stringify({ valid: exitCode === 0, diagnostics: result.diagnostics })}\n`);
+        stdout(
+          `${JSON.stringify({
+            valid: exitCode === 0,
+            diagnostics: result.diagnostics,
+            ...(result.profile === undefined ? {} : { profile: result.profile }),
+          })}\n`,
+        );
       } else {
         for (const diagnostic of result.diagnostics) stderr(`${formatDiagnostic(diagnostic)}\n`);
       }
@@ -81,6 +95,7 @@ export async function runCli(
     .command("sync")
     .description("Render enabled harnesses into a generation")
     .option("--repo <dir>", "Config repository", process.cwd())
+    .option("--profile <name>", "Profile to use; defaults to the first one in skillerie.yaml")
     .option("--check", "Compare generated output without activating it")
     .addOption(
       new Option("--harness <h>", "Select one enabled harness").choices([
@@ -94,11 +109,13 @@ export async function runCli(
       const options = command.optsWithGlobals<{
         readonly repo: string;
         readonly json?: boolean;
+        readonly profile?: string;
         readonly check?: boolean;
         readonly harness?: string;
       }>();
       const result = await syncRepo(options.repo, {
         ...dependencies,
+        ...(options.profile === undefined ? {} : { profile: options.profile }),
         ...(options.check === undefined ? {} : { check: options.check }),
         ...(options.harness && isHarness(options.harness) ? { harness: options.harness } : {}),
       });
@@ -109,10 +126,12 @@ export async function runCli(
             valid: exitCode === 0,
             diagnostics: result.diagnostics,
             drift: result.drift,
+            ...(result.profile === undefined ? {} : { profile: result.profile }),
             ...(result.generation ? { generation: result.generation } : {}),
           })}\n`,
         );
       } else {
+        if (result.profile !== undefined) stdout(`PROFILE ${result.profile}\n`);
         for (const diagnostic of result.diagnostics) stderr(`${formatDiagnostic(diagnostic)}\n`);
         if (result.generation) stdout(`Generated ${result.generation.dir}\n`);
       }
@@ -122,9 +141,17 @@ export async function runCli(
     .command("outdated")
     .description("Compare external skills with their upstream repositories")
     .option("--repo <dir>", "Config repository", process.cwd())
+    .option("--profile <name>", "Profile to use; defaults to the first one in skillerie.yaml")
     .action(async (_options: unknown, command: Command) => {
-      const options = command.optsWithGlobals<{ readonly repo: string; readonly json?: boolean }>();
-      const result = await outdatedRepo(options.repo, dependencies);
+      const options = command.optsWithGlobals<{
+        readonly repo: string;
+        readonly json?: boolean;
+        readonly profile?: string;
+      }>();
+      const result = await outdatedRepo(options.repo, {
+        ...dependencies,
+        ...(options.profile === undefined ? {} : { profile: options.profile }),
+      });
       exitCode = result.exitCode;
       if (options.json) stdout(`${JSON.stringify(result)}\n`);
       else {
@@ -143,7 +170,8 @@ export async function runCli(
     const lifecycle = program
       .command(name)
       .description(description)
-      .option("--repo <dir>", "Config repository", process.cwd());
+      .option("--repo <dir>", "Config repository", process.cwd())
+      .option("--profile <name>", "Profile to use; defaults to the first one in skillerie.yaml");
     if (name === "install" || name === "uninstall")
       lifecycle.addOption(
         new Option("--harness <h>", "Select one enabled harness").choices([
@@ -162,6 +190,7 @@ export async function runCli(
       const options = command.optsWithGlobals<{
         readonly repo: string;
         readonly json?: boolean;
+        readonly profile?: string;
         readonly harness?: string;
         readonly check?: boolean;
         readonly force?: boolean;
@@ -170,6 +199,7 @@ export async function runCli(
       const result = await runLifecycle(options.repo, {
         ...dependencies,
         command: name,
+        ...(options.profile === undefined ? {} : { profile: options.profile }),
         ...(options.harness && isHarness(options.harness) ? { harness: options.harness } : {}),
         ...(options.check === undefined ? {} : { check: options.check }),
         ...(options.force === undefined ? {} : { force: options.force }),
@@ -178,6 +208,8 @@ export async function runCli(
       exitCode = result.valid ? 0 : 1;
       if (options.json) stdout(`${JSON.stringify(result)}\n`);
       else {
+        if ((name === "install" || name === "status") && result.profile !== undefined)
+          stdout(`PROFILE ${result.profile}\n`);
         for (const diagnostic of result.diagnostics) {
           if (diagnostic.code === "merge.conflict")
             stdout(`CONFLICT ${diagnostic.file ?? "config.toml"} ${diagnostic.message}\n`);

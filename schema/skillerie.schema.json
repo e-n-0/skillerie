@@ -45,6 +45,13 @@
     "agents": { "$ref": "#/$defs/entities" },
     "rules": { "$ref": "#/$defs/entities" },
     "assets": { "$ref": "#/$defs/entities" },
+    "mcp": { "$ref": "#/$defs/mcpSelection" },
+    "profiles": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": { "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$" },
+      "additionalProperties": { "$ref": "#/$defs/profile" }
+    },
     "shared": {
       "type": "object",
       "additionalProperties": false,
@@ -202,6 +209,60 @@
           "type": "object",
           "additionalProperties": { "$ref": "#/$defs/override" }
         }
+      }
+    },
+    "mcpHarnessSelection": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "$ref": "#/$defs/names" },
+        "disabled": { "$ref": "#/$defs/names" }
+      }
+    },
+    "mcpSelection": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "$ref": "#/$defs/names" },
+        "disabled": { "$ref": "#/$defs/names" },
+        "harnesses": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "opencode": { "$ref": "#/$defs/mcpHarnessSelection" },
+            "codex": { "$ref": "#/$defs/mcpHarnessSelection" },
+            "omo": { "$ref": "#/$defs/mcpHarnessSelection" },
+            "pi": { "$ref": "#/$defs/mcpHarnessSelection" }
+          }
+        }
+      }
+    },
+    "profileHarness": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" }
+      }
+    },
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "harnesses": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "opencode": { "$ref": "#/$defs/profileHarness" },
+            "codex": { "$ref": "#/$defs/profileHarness" },
+            "omo": { "$ref": "#/$defs/profileHarness" },
+            "pi": { "$ref": "#/$defs/profileHarness" }
+          }
+        },
+        "skills": { "$ref": "#/$defs/entities" },
+        "agents": { "$ref": "#/$defs/entities" },
+        "rules": { "$ref": "#/$defs/entities" },
+        "assets": { "$ref": "#/$defs/entities" },
+        "mcp": { "$ref": "#/$defs/mcpSelection" }
       }
     },
     "externalSkill": {

@@ -10,6 +10,7 @@ import type { Generation, TreeDifference } from "../fs/index.js";
 
 /** Dependencies captured once per invocation, including an optional test registry. */
 export interface EngineOptions {
+  readonly profile?: string;
   /** Doctor resolves only from local external cache, without remote access. */
   readonly offlineExternal?: boolean;
   readonly env?: Environment;
@@ -19,6 +20,8 @@ export interface EngineOptions {
 }
 
 export interface ValidationResult {
+  /** The applied profile, present whenever configuration loaded with one. */
+  readonly profile?: string;
   readonly diagnostics: readonly Diagnostic[];
   readonly model?: SourceModel;
   readonly snapshot?: InputSnapshot;

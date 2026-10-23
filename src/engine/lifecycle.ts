@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { registry } from "../adapters/index.js";
 import type { Diagnostic, RenderedFile } from "../core/types.js";
+import { loadConfig } from "../config/index.js";
 import { runDoctor } from "../doctor/index.js";
 import { swapCurrent, writeGeneration } from "../fs/index.js";
 import { InstallError } from "../install/index.js";
@@ -34,8 +35,9 @@ async function manageRepo(repoDir: string, options: LifecycleOptions): Promise<L
   const diagnostics = [...validated.diagnostics];
   const { snapshot, model } = validated;
   const installations: InstallationResult[] = [];
+  const profile = validated.profile === undefined ? {} : { profile: validated.profile };
   if (!snapshot || !model || hasErrors(diagnostics))
-    return { valid: false, diagnostics, installations };
+    return { ...profile, valid: false, diagnostics, installations };
   if (options.command === "doctor") {
     diagnostics.push(
       ...(await runDoctor({
@@ -45,7 +47,7 @@ async function manageRepo(repoDir: string, options: LifecycleOptions): Promise<L
         ...(options.adapters ? { adapters: options.adapters } : {}),
       })),
     );
-    return { valid: !hasErrors(diagnostics), diagnostics, installations };
+    return { ...profile, valid: !hasErrors(diagnostics), diagnostics, installations };
   }
   if (options.harness && !snapshot.config.harnesses[options.harness]?.enabled) {
     diagnostics.push({
@@ -53,7 +55,7 @@ async function manageRepo(repoDir: string, options: LifecycleOptions): Promise<L
       code: "engine.harness",
       message: `Harness ${options.harness} is not enabled.`,
     });
-    return { valid: false, diagnostics, installations };
+    return { ...profile, valid: false, diagnostics, installations };
   }
   const root = join(snapshot.config.paths.cache, "current");
   const files: RenderedFile[] = [...externalStateFiles(snapshot)];
@@ -88,7 +90,7 @@ async function manageRepo(repoDir: string, options: LifecycleOptions): Promise<L
         }),
       );
   }
-  if (hasErrors(diagnostics)) return { valid: false, diagnostics, installations };
+  if (hasErrors(diagnostics)) return { ...profile, valid: false, diagnostics, installations };
   const prepared: PreparedInstallation[] = [];
   for (const install of selected) {
     const manifest = await readManifest(install.harnessHome);
@@ -116,9 +118,19 @@ async function manageRepo(repoDir: string, options: LifecycleOptions): Promise<L
       });
     }
   }
-  if (hasErrors(diagnostics)) return { valid: false, diagnostics, installations };
+  if (hasErrors(diagnostics)) return { ...profile, valid: false, diagnostics, installations };
   const userEdits = installations.some((item) => item.userEdits.length > 0);
   if (options.command === "status") {
+    for (const item of prepared) {
+      const installedProfile = item.manifest?.profile;
+      if (installedProfile !== undefined && installedProfile !== snapshot.config.profile)
+        diagnostics.push({
+          severity: "warn",
+          code: "install.profile.mismatch",
+          message: `Installed with profile "${installedProfile}"; pass --profile ${installedProfile} to compare against it.`,
+          file: item.options.harnessHome,
+        });
+    }
     const drift = await generationDrift({ root, files });
     const clean =
       !userEdits &&
@@ -126,6 +138,7 @@ async function manageRepo(repoDir: string, options: LifecycleOptions): Promise<L
       prepared.every((item) => item.manifest && item.plan.actions.length === 0);
     const installed = await installedExternals(snapshot.config);
     return {
+      ...profile,
       valid: clean,
       clean,
       drift,
@@ -147,6 +160,7 @@ async function manageRepo(repoDir: string, options: LifecycleOptions): Promise<L
   if (options.check) {
     const drift = await generationDrift({ root, files });
     return {
+      ...profile,
       valid:
         !userEdits &&
         drift.length === 0 &&
@@ -179,6 +193,7 @@ async function manageRepo(repoDir: string, options: LifecycleOptions): Promise<L
       })),
     );
   return {
+    ...profile,
     valid: !hasErrors(diagnostics) && !installed.some((item) => item.userEdits.length),
     diagnostics,
     installations: installed,
@@ -208,7 +223,17 @@ export async function runLifecycle(
       message: error.message,
       ...(error.file ? { file: error.file } : {}),
     };
-    return { valid: false, diagnostics: [diagnostic], installations: [] };
+    // Installer errors surface after configuration loaded, so the applied profile is still known.
+    const loaded = await loadConfig(repoDir, options.env ?? process.env, {
+      ...(options.profile === undefined ? {} : { profile: options.profile }),
+    });
+    const profile = loaded.config?.profile;
+    return {
+      ...(profile === undefined ? {} : { profile }),
+      valid: false,
+      diagnostics: [diagnostic],
+      installations: [],
+    };
   }
 }
 
