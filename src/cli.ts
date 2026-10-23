@@ -14,7 +14,8 @@ import {
   validateRepo,
 } from "./engine/index.js";
 import { describeChanges } from "./engine/external/changes.js";
-import type { EngineOptions, OutdatedEntry } from "./engine/index.js";
+import type { EngineOptions, OutdatedEntry, OutdatedResult } from "./engine/index.js";
+import { externalRepositoryUrl } from "./model/external.js";
 import { isHarness } from "./engine/render.js";
 import { ENGINE_VERSION } from "./version.js";
 import { InstallError } from "./install/index.js";
@@ -49,11 +50,88 @@ export function formatDiagnostic(diagnostic: Diagnostic, color = false): string 
   return `${style(SEVERITY_STYLE[diagnostic.severity], diagnostic.severity)} ${style("2", where)} ${style("90", diagnostic.code)} ${diagnostic.message}`;
 }
 
-/** Outdated output has one line per external skill: URL, ref, then its status message. */
-export function formatOutdated(entry: OutdatedEntry, color = false): string {
-  const ref = entry.ref ?? "latest";
-  if (!color) return `${entry.url} ${ref} ${entry.message}`;
-  return `${entry.url} ${style("2", ref)} ${style(entry.outdated ? "1;33" : "32", entry.message)}`;
+/** Short source name: owner/repo for GitHub, the URL otherwise. */
+function sourceName(url: string): string {
+  return externalRepositoryUrl(url).replace(/^https:\/\/github\.com\//, "");
+}
+
+function versionChange(entry: OutdatedEntry): string {
+  return entry.kind === "tag"
+    ? `${entry.ref ?? ""} -> ${entry.newerTags.at(-1) ?? entry.ref ?? ""}`
+    : `${entry.sha.slice(0, 7)} -> ${entry.latestSha.slice(0, 7)}`;
+}
+
+const SHOWN_FILES = 3;
+const STATUS_STYLE = { changed: "33", added: "32", removed: "31", moved: "33" } as const;
+
+/** Human outdated report: one row per changed skill, the unchanged skills, then what to run. */
+export function formatOutdatedReport(result: OutdatedResult, color = false): string {
+  const paint = (code: string, text: string) => (color ? style(code, text) : text);
+  const rows: { readonly cells: readonly string[]; readonly status: keyof typeof STATUS_STYLE }[] =
+    [];
+  const unchanged: string[] = [];
+  for (const entry of result.entries) {
+    if (!entry.outdated) {
+      unchanged.push(...entry.selected);
+      continue;
+    }
+    const source = sourceName(entry.url);
+    const version = versionChange(entry);
+    if (entry.skills === undefined) {
+      rows.push({
+        cells: [entry.selected.join(", "), "moved", source, version, "skills not compared"],
+        status: "moved",
+      });
+      continue;
+    }
+    for (const skill of entry.skills) {
+      if (skill.status === "unchanged") {
+        unchanged.push(skill.name);
+        continue;
+      }
+      const more = skill.files.length - SHOWN_FILES;
+      const files =
+        skill.files.slice(0, SHOWN_FILES).join(", ") + (more > 0 ? `, +${more} more` : "");
+      rows.push({
+        cells: [skill.name, skill.status, source, version, files],
+        status: skill.status,
+      });
+    }
+  }
+  if (rows.length === 0)
+    return result.entries.length === 0
+      ? ""
+      : `${paint(
+          "32",
+          result.entries.length === 1
+            ? "The external source is up to date."
+            : `All ${result.entries.length} external sources are up to date.`,
+        )}\n`;
+  const widths = [0, 1, 2, 3].map((column) =>
+    Math.max(...rows.map((row) => row.cells[column]?.length ?? 0)),
+  );
+  const lines = [paint("1", "Changed upstream:"), ""];
+  for (const { cells, status } of rows) {
+    const [name = "", label = "", source = "", version = "", files = ""] = cells;
+    lines.push(
+      `  ${paint("1", name.padEnd(widths[0] ?? 0))}  ${paint(STATUS_STYLE[status], label.padEnd(widths[1] ?? 0))}  ${source.padEnd(widths[2] ?? 0)}  ${paint("2", version.padEnd(widths[3] ?? 0))}  ${paint("2", files)}`,
+    );
+  }
+  if (unchanged.length)
+    lines.push("", `${paint("1", "No changes:")} ${paint("2", unchanged.join(", "))}`);
+  const changed = result.entries.filter((entry) => entry.outdated);
+  const pinned = changed.filter((entry) => entry.kind === "sha" || entry.kind === "tag").length;
+  const floating = changed.length - pinned;
+  lines.push("");
+  if (pinned)
+    lines.push(
+      `Run ${paint("1", "skillerie update")} to move ${pinned === 1 ? "this pin" : `these ${pinned} pins`}, then ${paint("1", "skillerie install")}.`,
+    );
+  if (floating)
+    lines.push(
+      `Run ${paint("1", "skillerie install")} to pick up ${floating === 1 ? "the source that follows" : `the ${floating} sources that follow`} a branch.`,
+    );
+  return `${lines.join("\n")}\n`;
 }
 
 /** Injectable engine dependencies exercise the same command path without global mocks. */
@@ -168,14 +246,26 @@ export async function runCli(
         readonly json?: boolean;
         readonly profile?: string;
       }>();
+      // A live status line on a terminal; fetching newer commits can take a while.
+      const live =
+        !options.json && dependencies.stderr === undefined && process.stderr.isTTY === true;
       const result = await outdatedRepo(options.repo, {
         ...dependencies,
         ...(options.profile === undefined ? {} : { profile: options.profile }),
+        ...(live
+          ? {
+              onProgress: ({ phase, index, total, url }) => {
+                const verb = phase === "query" ? "Checking" : "Fetching";
+                stderr(`\r\x1b[2K${verb} ${index + 1}/${total} ${sourceName(url)}...`);
+              },
+            }
+          : {}),
       });
+      if (live) stderr("\r\x1b[2K");
       exitCode = result.exitCode;
       if (options.json) stdout(`${JSON.stringify(result)}\n`);
       else {
-        for (const entry of result.entries) stdout(`${formatOutdated(entry, colorOut)}\n`);
+        stdout(formatOutdatedReport(result, colorOut));
         for (const diagnostic of result.diagnostics)
           stderr(`${formatDiagnostic(diagnostic, color)}\n`);
       }
