@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.9 - 2026-10-23
+
+### Fixes
+
+- skillerie --version now reports the published version instead of 0.0.0, so engine ranges in skillerie.yaml work. (#8)
+
 ## 0.0.8 - 2026-10-23
 
 ### Features
