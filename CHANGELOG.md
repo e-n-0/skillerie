@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.7 - 2026-10-23
+
+### Features
+
+- `skillerie doctor` colors severities and dims locations and codes when printing to a terminal. Set NO_COLOR to turn it off. (#6)
+
 ## 0.0.6 - 2026-10-22
 
 ### Documentation
