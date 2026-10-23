@@ -178,6 +178,8 @@ export function formatInstallReport(
   result: LifecycleResult,
   options: {
     readonly check?: boolean;
+    /** Describe an uninstall: removals and restored entries instead of installs. */
+    readonly uninstall?: boolean;
     readonly verbose?: boolean;
     readonly color?: boolean;
     readonly home?: string;
@@ -197,10 +199,18 @@ export function formatInstallReport(
     const counts = new Map<keyof typeof ACTION_LABELS, number>();
     for (const action of installation.actions)
       if (action.kind !== "SKIP") counts.set(action.kind, (counts.get(action.kind) ?? 0) + 1);
-    const parts = [...counts].map(([kind, count]) => {
-      const [done, planned, code] = ACTION_LABELS[kind];
-      return paint(code, `${count} ${options.check ? planned : done}`);
-    });
+    const parts = options.uninstall
+      ? (["removed", "restored"] as const).flatMap((label) => {
+          // Uninstall moves managed entries to the backup directory and restores what they replaced.
+          const count = [...counts]
+            .filter(([kind]) => (kind === "BACKUP") === (label === "removed"))
+            .reduce((sum, [, value]) => sum + value, 0);
+          return count ? [paint(label === "removed" ? "33" : "36", `${count} ${label}`)] : [];
+        })
+      : [...counts].map(([kind, count]) => {
+          const [done, planned, code] = ACTION_LABELS[kind];
+          return paint(code, `${count} ${options.check ? planned : done}`);
+        });
     if (installation.userEdits.length)
       parts.push(paint("1;31", `${installation.userEdits.length} edited by you`));
     if (parts.length) changed += 1;
@@ -232,7 +242,18 @@ export function formatInstallReport(
     );
   } else if (edited)
     lines.push(
-      `${paint("1;31", "Some files were edited by you and left alone.")} Use ${paint("1", "--force")} to back them up and replace them.`,
+      options.uninstall
+        ? paint("1;31", "Some files were edited by you and left alone.")
+        : `${paint("1;31", "Some files were edited by you and left alone.")} Use ${paint("1", "--force")} to back them up and replace them.`,
+    );
+  else if (options.uninstall && result.valid)
+    lines.push(
+      changed
+        ? paint(
+            "32",
+            `Removed skillerie from ${changed} harness ${changed === 1 ? "home" : "homes"}; replaced files were restored.`,
+          )
+        : "Nothing was installed from this repository.",
     );
   else if (result.valid)
     lines.push(
@@ -243,6 +264,75 @@ export function formatInstallReport(
           : "Everything was already up to date.",
       ),
     );
+  return `${lines.join("\n")}\n`;
+}
+
+/** Human status report: ownership and pending changes per home, then external skills. */
+export function formatStatusReport(
+  result: LifecycleResult,
+  options: { readonly color?: boolean; readonly home?: string; readonly repo?: string } = {},
+): string {
+  const paint = (code: string, text: string) => (options.color ? style(code, text) : text);
+  const short = (path: string) =>
+    options.home && (path === options.home || path.startsWith(`${options.home}/`))
+      ? `~${path.slice(options.home.length)}`
+      : path;
+  const lines: string[] = [];
+  if (result.profile !== undefined) lines.push(`${paint("1", "Profile:")} ${result.profile}`, "");
+  const width = Math.max(0, ...result.installations.map((item) => item.harness.length));
+  const homeWidth = Math.max(0, ...result.installations.map((item) => short(item.home).length));
+  for (const installation of result.installations) {
+    const pending = installation.actions.filter((action) => action.kind !== "SKIP").length;
+    let state: string;
+    if (!installation.installed) state = paint("2", "not installed");
+    else if (installation.owner && options.repo && installation.owner.path !== options.repo)
+      state = paint("33", `installed from ${short(installation.owner.path)}`);
+    else if (installation.userEdits.length)
+      state = paint("1;31", `installed, ${installation.userEdits.length} edited by you`);
+    else if (pending)
+      state = paint("33", `installed, ${pending} ${pending === 1 ? "change" : "changes"} pending`);
+    else state = paint("32", "installed, up to date");
+    lines.push(
+      `  ${paint("1", installation.harness.padEnd(width))}  ${paint("2", short(installation.home).padEnd(homeWidth))}  ${state}`,
+    );
+    for (const target of installation.userEdits)
+      lines.push(`      ${paint("31", "edited")} ${short(target)}`);
+  }
+  for (const diagnostic of result.diagnostics)
+    if (diagnostic.code === "merge.conflict")
+      // Kept verbatim: conflict lines are matched by scripts.
+      lines.push(`CONFLICT ${diagnostic.file ?? "config.toml"} ${diagnostic.message}`);
+  const external = result.external ?? [];
+  if (external.length) {
+    const rows = external.map((entry) => [
+      sourceName(entry.url),
+      entry.ref === undefined || /^[a-f0-9]{40}$/i.test(entry.ref) ? "" : entry.ref,
+      entry.sha.slice(0, 7),
+      entry.path,
+    ]);
+    const widths = [0, 1, 2].map((column) =>
+      Math.max(...rows.map((row) => row[column]?.length ?? 0)),
+    );
+    lines.push("", paint("1", "External skills:"));
+    for (const [source = "", ref = "", sha = "", path = ""] of rows)
+      lines.push(
+        `  ${source.padEnd(widths[0] ?? 0)}  ${paint(
+          "2",
+          [ref.padEnd(widths[1] ?? 0), sha]
+            .filter(Boolean)
+            .join("  ")
+            .padEnd((widths[1] ? (widths[1] ?? 0) + 2 : 0) + (widths[2] ?? 0)),
+        )}${path ? `  ${paint("2", path)}` : ""}`.trimEnd(),
+      );
+  }
+  const drift = result.drift?.length ?? 0;
+  lines.push("");
+  if (drift) lines.push(paint("2", `${drift} generated files differ from a fresh render.`));
+  lines.push(
+    result.clean
+      ? paint("32", "Everything is installed and up to date.")
+      : `Run ${paint("1", "skillerie install")} to bring these homes up to date.`,
+  );
   return `${lines.join("\n")}\n`;
 }
 
@@ -403,6 +493,8 @@ export async function runCli(
           "pi",
         ]),
       );
+    if (name === "uninstall")
+      lifecycle.option("--verbose", "List every file the uninstall touches");
     if (name === "install")
       lifecycle
         .option("--verbose", "List every file the install touches")
@@ -422,7 +514,7 @@ export async function runCli(
       }>();
       // A live status line on a terminal; resolving and rendering can take a while.
       const live =
-        name === "install" &&
+        name !== "doctor" &&
         !options.json &&
         dependencies.stderr === undefined &&
         process.stderr.isTTY === true;
@@ -439,40 +531,28 @@ export async function runCli(
       if (live) stderr("\r\x1b[2K");
       exitCode = result.valid ? 0 : 1;
       if (options.json) stdout(`${JSON.stringify(result)}\n`);
-      else if (name === "install") {
+      else if (name !== "doctor") {
         for (const line of formatInstallDiagnostics(result.diagnostics, color)) stderr(`${line}\n`);
         const home = (dependencies.env ?? process.env)["HOME"];
         stdout(
-          formatInstallReport(result, {
-            check: options.check === true,
-            verbose: options.verbose === true,
-            color: colorOut,
-            ...(home ? { home } : {}),
-          }),
+          name === "status"
+            ? formatStatusReport(result, {
+                color: colorOut,
+                repo: resolve(options.repo),
+                ...(home ? { home } : {}),
+              })
+            : formatInstallReport(result, {
+                check: options.check === true,
+                uninstall: name === "uninstall",
+                verbose: options.verbose === true,
+                color: colorOut,
+                ...(home ? { home } : {}),
+              }),
         );
       } else {
-        if (name === "status" && result.profile !== undefined)
-          stdout(`PROFILE ${result.profile}\n`);
-        for (const diagnostic of result.diagnostics) {
-          if (diagnostic.code === "merge.conflict")
-            stdout(`CONFLICT ${diagnostic.file ?? "config.toml"} ${diagnostic.message}\n`);
-          else stderr(`${formatDiagnostic(diagnostic, color && name === "doctor")}\n`);
-        }
-        for (const installation of result.installations) {
-          if (name === "status")
-            stdout(
-              `${installation.installed ? "OWNED" : "UNOWNED"} ${installation.home}${installation.owner ? ` ${installation.owner.path}` : ""}\n`,
-            );
-          if (!installation.actions.length) stdout(`SKIP ${installation.home}\n`);
-          for (const action of installation.actions) stdout(`${action.kind} ${action.target}\n`);
-          for (const target of installation.userEdits) stdout(`USER-EDIT ${target}\n`);
-        }
-        for (const difference of result.drift ?? [])
-          stdout(`DRIFT ${difference.reason} ${difference.relPath}\n`);
-        for (const entry of result.external ?? [])
-          stdout(
-            `EXTERNAL ${entry.url} ${entry.ref ?? "latest"} ${entry.sha.slice(0, 8)}${entry.path ? ` ${entry.path}` : ""}\n`,
-          );
+        // doctor reports only diagnostics.
+        for (const diagnostic of result.diagnostics)
+          stderr(`${formatDiagnostic(diagnostic, color)}\n`);
       }
     });
   }
