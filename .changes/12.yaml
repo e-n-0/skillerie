@@ -1,0 +1,5 @@
+type: feat
+description: >-
+  `skillerie outdated` prints a readable table of changed skills with short
+  source names, lists unchanged skills on one line, says once what to run next,
+  and shows progress in a terminal while it checks and fetches sources.
