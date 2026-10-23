@@ -1,0 +1,4 @@
+type: feat
+description: >-
+  `skillerie outdated` colors its results in a terminal: green when a skill is
+  up to date, yellow when it is behind. Set NO_COLOR to turn it off.
