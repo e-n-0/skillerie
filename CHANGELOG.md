@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.15 - 2026-10-23
+
+### Features
+
+- `skillerie status` and `skillerie uninstall` print one summary row per harness home, list external skills with short names, and show progress in a terminal; uninstall adds --verbose to list every entry. (#14)
+
 ## 0.0.14 - 2026-10-23
 
 ### Features
