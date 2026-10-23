@@ -1,8 +1,15 @@
 import { join } from "node:path";
 import { loadConfig } from "../config/index.js";
-import type { Diagnostic, ExternalRevision } from "../core/types.js";
+import type {
+  Diagnostic,
+  Environment,
+  ExternalRevision,
+  ExternalSkillInput,
+} from "../core/types.js";
 import { ENGINE_VERSION } from "../version.js";
 import { checkEngineVersion, compareSemverTags } from "./compatibility.js";
+import { checkout } from "./external/cache.js";
+import { compareSkills, describeChanges, type SkillChange } from "./external/changes.js";
 import { listRemoteTags, queryRemote } from "./external/git.js";
 import { installedExternals } from "./external/state.js";
 import { ExternalError, parseExternalUrl, type ExternalUrl } from "./external/url.js";
@@ -14,6 +21,8 @@ export interface OutdatedEntry extends ExternalRevision {
   readonly newerTags: readonly string[];
   readonly outdated: boolean;
   readonly status: "current" | "behind";
+  /** Per-skill comparison, present when upstream moved and both commits could be fetched. */
+  readonly skills?: readonly SkillChange[];
   readonly message: string;
 }
 
@@ -23,7 +32,28 @@ export interface OutdatedResult {
   readonly exitCode: 0 | 1 | 2;
 }
 
-/** Query remotes without refreshing the installed generation or cache index. */
+/** Fetch both commits into the external cache and compare the entry's selected skills. */
+async function skillChanges(input: {
+  readonly url: ExternalUrl;
+  readonly input: ExternalSkillInput;
+  readonly sha: string;
+  readonly latestSha: string;
+  readonly env: Environment;
+  readonly root: string;
+}): Promise<readonly SkillChange[]> {
+  const root = join(input.root, "external", input.url.cacheKey);
+  for (const sha of [input.sha, input.latestSha])
+    await checkout({ root, url: input.url.cloneUrl, sha, env: input.env });
+  const label = input.url.path.split("/").at(-1) || input.url.cacheKey.split("/").at(-1) || "skill";
+  return compareSkills({
+    before: join(root, input.sha, input.url.path),
+    after: join(root, input.latestSha, input.url.path),
+    ...(input.input.include === undefined ? {} : { include: input.input.include }),
+    label,
+  });
+}
+
+/** Query remotes and compare selected skills without refreshing the installed generation or cache index. */
 export async function outdatedRepo(
   repoDir: string,
   options: EngineOptions = {},
@@ -68,7 +98,8 @@ export async function outdatedRepo(
       const sha = prior?.sha ?? remote.sha;
       let latestSha = remote.sha;
       let newerTags: readonly string[] = [];
-      let message: string;
+      let head: string | undefined;
+      let action: string | undefined;
       switch (remote.kind) {
         case "tag": {
           const tags = await listRemoteTags(url, env);
@@ -81,7 +112,7 @@ export async function outdatedRepo(
             .sort((a, b) => compareSemverTags(a, b) ?? 0);
           const latest = newerTags.at(-1);
           latestSha = tags.find((tag) => tag.name === latest)?.sha ?? remote.sha;
-          message = latest ? `${url.ref ?? ""} -> ${latest} available` : "up to date";
+          if (latest) head = `${url.ref ?? ""} -> ${latest} available`;
           break;
         }
         case "sha": {
@@ -91,23 +122,53 @@ export async function outdatedRepo(
             path: url.path,
           };
           latestSha = (await queryRemote(defaultUrl, env)).sha;
-          message =
-            sha === latestSha
-              ? "up to date"
-              : `default branch head ${latestSha.slice(0, 8)} differs from pinned ${sha.slice(0, 8)}`;
+          if (sha !== latestSha)
+            head = `default branch head ${latestSha.slice(0, 8)} differs from pinned ${sha.slice(0, 8)}`;
           break;
         }
         case "branch":
         case "default":
-          message =
-            sha === latestSha
-              ? "up to date"
-              : `upstream moved ${sha.slice(0, 8)}..${latestSha.slice(0, 8)}; run install`;
+          if (sha !== latestSha) {
+            head = `upstream moved ${sha.slice(0, 8)}..${latestSha.slice(0, 8)}`;
+            action = "run install";
+          }
           break;
         default:
           assertNever(remote.kind);
       }
-      const outdated = newerTags.length > 0 || sha !== latestSha;
+      const skills =
+        head === undefined
+          ? undefined
+          : sha === latestSha
+            ? []
+            : await skillChanges({
+                url,
+                input,
+                sha,
+                latestSha,
+                env,
+                root: config.paths.cache,
+              }).catch((error: unknown) => {
+                if (!(error instanceof ExternalError)) throw error;
+                diagnostics.push({
+                  severity: "warn",
+                  code: "external.changes",
+                  message: `${input.url}: ${error.message} Reporting the commit change only.`,
+                  file: join(config.paths.repo, "skillerie.yaml"),
+                  jsonPath: `/skills/external/${index}`,
+                });
+                return undefined;
+              });
+      const changed = describeChanges(skills ?? []);
+      const outdated = head !== undefined && (skills === undefined || changed !== "");
+      const message =
+        head === undefined
+          ? "up to date"
+          : skills === undefined
+            ? [head, action].filter(Boolean).join("; ")
+            : outdated
+              ? [head, `changed: ${changed}`, action].filter(Boolean).join("; ")
+              : `${head}; no changes to ${skills.map((skill) => skill.name).join(", ") || "the selected skills"}`;
       entries.push({
         url: input.url,
         ...(url.ref === undefined ? {} : { ref: url.ref }),
@@ -118,6 +179,7 @@ export async function outdatedRepo(
         newerTags,
         outdated,
         status: outdated ? "behind" : "current",
+        ...(skills === undefined ? {} : { skills }),
         message,
       });
     } catch (error) {
