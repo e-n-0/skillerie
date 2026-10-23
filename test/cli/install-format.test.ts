@@ -1,5 +1,9 @@
 import { expect, it } from "vitest";
-import { formatInstallReport } from "../../src/cli.js";
+import {
+  formatInstallDiagnostics,
+  formatInstallReport,
+  formatStatusReport,
+} from "../../src/cli.js";
 import type { LifecycleResult } from "../../src/engine/index.js";
 
 const home = "/home/alice";
@@ -83,4 +87,113 @@ it("names edited files and suggests --force when the install leaves user edits",
   expect(text).toContain(
     "Some files were edited by you and left alone. Use --force to back them up and replace them.",
   );
+});
+
+it("counts removals and restorations when uninstall reports", () => {
+  // Given: an uninstall that moved two managed entries away and restored one replaced link.
+  const [first, second] = result().installations;
+  if (!first || !second) throw new Error("fixture");
+  const { profile: _profile, ...base } = result();
+  const report: LifecycleResult = {
+    ...base,
+    installations: [
+      {
+        ...first,
+        actions: [
+          { kind: "BACKUP", target: `${home}/.config/opencode/AGENTS.md` },
+          { kind: "BACKUP", target: `${home}/.config/opencode/skills/review` },
+          { kind: "RELINK", target: `${home}/.config/opencode/skills/review` },
+        ],
+      },
+    ],
+  };
+  // When: the uninstall report is formatted.
+  const text = formatInstallReport(report, { home, uninstall: true });
+  // Then: removals and restorations are counted in uninstall terms.
+  expect(text).toBe(
+    [
+      "  opencode  ~/.config/opencode  2 removed, 1 restored",
+      "",
+      "Removed skillerie from 1 harness home; replaced files were restored.",
+      "",
+    ].join("\n"),
+  );
+});
+
+it("shows ownership, pending changes and external skills when status reports", () => {
+  // Given: one current home, one with pending changes, one owned elsewhere, one not installed.
+  const [first, second] = result().installations;
+  if (!first || !second) throw new Error("fixture");
+  const owner = { path: "/repo", name: "repo" } as unknown as NonNullable<typeof first.owner>;
+  const report = result({
+    valid: false,
+    clean: false,
+    installations: [
+      { ...first, owner, actions: [] },
+      { ...second, owner, actions: [{ kind: "LINK", target: `${home}/.codex/AGENTS.md` }] },
+      { ...second, harness: "omo", home: `${home}/.omo`, owner: { ...owner, path: "/other" } },
+      { ...second, harness: "pi", home: `${home}/.pi/agent`, installed: false },
+    ],
+    external: [
+      {
+        url: "https://github.com/acme/skills",
+        ref: "v1.2.0",
+        sha: "c".repeat(40),
+        path: "skills/review",
+      },
+      { url: "https://github.com/acme/tools.git", sha: "d".repeat(40), path: "" },
+    ],
+  });
+  // When: the status report is formatted.
+  const text = formatStatusReport(report, { home, repo: "/repo" });
+  // Then: each home has one state, externals use short names, and the next step is named.
+  expect(text).toBe(
+    [
+      "Profile: work",
+      "",
+      "  opencode  ~/.config/opencode  installed, up to date",
+      "  codex     ~/.codex            installed, 1 change pending",
+      "  omo       ~/.omo              installed from /other",
+      "  pi        ~/.pi/agent         not installed",
+      "",
+      "External skills:",
+      "  acme/skills  v1.2.0  ccccccc  skills/review",
+      "  acme/tools           ddddddd",
+      "",
+      "Run skillerie install to bring these homes up to date.",
+      "",
+    ].join("\n"),
+  );
+});
+
+it("groups warnings by code and keeps errors whole when install prints diagnostics", () => {
+  // Given: two warnings with one code and an error.
+  const diagnostics = [
+    {
+      severity: "warn" as const,
+      code: "engine.permission.unenforced",
+      message: "a",
+      file: "/repo/agents/explorer.md",
+    },
+    {
+      severity: "warn" as const,
+      code: "engine.permission.unenforced",
+      message: "b",
+      file: "/repo/agents/reviewer.md",
+    },
+    {
+      severity: "error" as const,
+      code: "install.lock",
+      message: "Locked.",
+      file: "/home/alice/.codex",
+    },
+  ];
+  // When: install formats them without color.
+  const lines = formatInstallDiagnostics(diagnostics);
+  // Then: the error is unchanged, the warnings share one line, and validate is suggested.
+  expect(lines).toEqual([
+    "error /home/alice/.codex install.lock Locked.",
+    "warn engine.permission.unenforced (2): explorer, reviewer",
+    "Run skillerie validate to see each warning.",
+  ]);
 });

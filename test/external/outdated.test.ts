@@ -187,9 +187,7 @@ it("prints installed revisions when status observes a newer upstream commit", as
   // When: status reports ownership and drift.
   const result = await sample.command(["status"]);
   // Then: the external status line names the active generation rather than the fresh validation.
-  expect(result.stdout).toContain(
-    `EXTERNAL ${sample.url} latest ${sample.initial.slice(0, 8)} skills`,
-  );
+  expect(result.stdout).toContain(`${sample.url}  ${sample.initial.slice(0, 7)}  skills`);
 });
 
 it("stays offline when doctor reports installed external skills", async () => {

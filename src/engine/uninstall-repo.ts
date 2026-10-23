@@ -33,6 +33,7 @@ export async function uninstallRepo(
     const manifest = await readManifest(configured.path);
     // An absent manifest must not cause even a lock directory to be created.
     if (!manifest) continue;
+    options.onProgress?.(`Uninstalling ${harness}`);
     const install = installOptions({
       config,
       harness,

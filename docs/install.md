@@ -10,7 +10,7 @@ All commands take `--repo <dir>` (default: the current directory) and the global
 
 When `skillerie.yaml` defines [profiles](config.md#profiles), `validate`, `sync`, `outdated`, `install`, `uninstall`, `status`, and `doctor` accept `--profile <name>`. Without it, the first profile in the file is used. An unknown name fails with `config.profile.unknown` and lists the profiles you can pick.
 
-When a profile is applied, `install` starts with `Profile: <name>`, `status` and `sync` print `PROFILE <name>` as their first line, and the JSON output of every command except `outdated` has a `profile` field. Neither appears for a configuration without profiles.
+When a profile is applied, `install`, `uninstall` and `status` start with `Profile: <name>`, `sync` prints `PROFILE <name>` as its first line, and the JSON output of every command except `outdated` has a `profile` field. Neither appears for a configuration without profiles.
 
 ### validate
 
@@ -74,11 +74,11 @@ With `--verbose`, each change is listed under its harness:
 skillerie status
 ```
 
-Prints `OWNED <home> <repo>` or `UNOWNED <home>` for each enabled harness, followed by any pending changes, user edits, and generation drift. Exit status is 0 only when everything is installed and current.
+Prints one row per enabled harness home: `not installed`, `installed from <repo>` when another repository owns it, `installed, N changes pending`, `installed, N edited by you` (each edited file is listed), or `installed, up to date`. A count of generated files that differ from a fresh render and a line saying what to run follow. Exit status is 0 only when everything is installed and current.
 
 If a home was installed with a different profile than the one `status` uses, it warns with `install.profile.mismatch`, for example `Installed with profile "work"; pass --profile work to compare against it.`
 
-External entries also print `EXTERNAL <url> <ref> <short-sha> [path]`, using the active generation's revisions when available. An omitted ref is shown as `latest`. The JSON result includes the full revisions under `external`.
+An `External skills:` section lists each external entry as `owner/repo`, its tag or branch (pinned commits aren't repeated), short commit and path, using the active generation's revisions when available. The JSON result includes the full revisions under `external`.
 
 ### outdated
 
@@ -111,10 +111,10 @@ Human output prints `UPDATED <url> <old> -> <new>; changed: ...` for each bumped
 ### uninstall
 
 ```sh
-skillerie uninstall [--harness <h>]
+skillerie uninstall [--harness <h>] [--verbose]
 ```
 
-Reads each configured harness's manifest and undoes the install. It doesn't render or read your sources, so it works even after you've deleted skills. A harness with no manifest is skipped without creating anything.
+Reads each configured harness's manifest and undoes the install. It prints one row per harness home with how many entries were removed and how many replaced files were restored; `--verbose` lists each one. It doesn't render or read your sources, so it works even after you've deleted skills. A harness with no manifest is skipped without creating anything.
 
 ### doctor
 
