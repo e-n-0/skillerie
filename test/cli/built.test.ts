@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
-import { readFile, readdir, writeFile } from "node:fs/promises";
+import { cp, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { afterEach, beforeAll, beforeEach, expect, it } from "vitest";
@@ -71,6 +72,24 @@ function injectedCommand(args: readonly string[]) {
   `;
   return execute(["--input-type=module", "-e", script, ...args], sample.env);
 }
+
+it("reports the package.json version when the release job re-versions the package", async () => {
+  // Given: a copy of the built package whose package.json carries a release version.
+  const pkg = await mkdtemp(join(tmpdir(), "skillerie-pkg-"));
+  try {
+    await cp(join(root, "dist"), join(pkg, "dist"), { recursive: true });
+    await cp(join(root, "schema"), join(pkg, "schema"), { recursive: true });
+    await symlink(join(root, "node_modules"), join(pkg, "node_modules"));
+    const manifest = JSON.parse(await readFile(join(root, "package.json"), "utf8")) as object;
+    await writeFile(join(pkg, "package.json"), JSON.stringify({ ...manifest, version: "9.8.7" }));
+    // When: Node prints the version of that copy.
+    const result = await execute([join(pkg, "dist/cli.js"), "--version"]);
+    // Then: the CLI reports the version written into package.json.
+    expect(result).toEqual({ code: 0, stdout: "9.8.7\n", stderr: "" });
+  } finally {
+    await rm(pkg, { recursive: true, force: true });
+  }
+});
 
 it("exits zero when the built executable validates the sample", async () => {
   // Given: the compiled CLI and an isolated sample repository.
