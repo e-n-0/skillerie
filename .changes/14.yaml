@@ -1,0 +1,5 @@
+type: feat
+description: >-
+  `skillerie status` and `skillerie uninstall` print one summary row per
+  harness home, list external skills with short names, and show progress in a
+  terminal; uninstall adds --verbose to list every entry.
