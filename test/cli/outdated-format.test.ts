@@ -3,6 +3,7 @@ import { formatOutdated } from "../../src/cli.js";
 import type { OutdatedEntry } from "../../src/engine/index.js";
 
 const entry = (outdated: boolean, message: string): OutdatedEntry => ({
+  index: 0,
   url: "https://github.com/example/skills",
   ref: "v1.2.0",
   path: "",
