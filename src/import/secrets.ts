@@ -41,7 +41,10 @@ const SAFE_QUERY: ReadonlySet<string> = new Set([
 const HEADER_FLAGS = new Set(["-H", "--header"]);
 
 /** A URL without user info, fragment, parameters outside SAFE_QUERY, or credential values; undefined when unchanged. */
-function cleanUrl(value: string): string | undefined {
+/** URLs nested deeper than this inside query values are dropped unchecked instead of recursing without bound. */
+const MAX_URL_DEPTH = 3;
+
+function cleanUrl(value: string, depth: number): string | undefined {
   if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(value)) return undefined;
   let url: URL;
   try {
@@ -61,7 +64,10 @@ function cleanUrl(value: string): string | undefined {
     changed = true;
   }
   for (const [name, entry] of [...url.searchParams]) {
-    const verdict = SAFE_QUERY.has(name.toLowerCase()) ? judge(entry, false) : undefined;
+    const verdict =
+      SAFE_QUERY.has(name.toLowerCase()) && depth < MAX_URL_DEPTH
+        ? judge(entry, false, depth + 1)
+        : undefined;
     if (verdict?.changed === false) continue;
     url.searchParams.delete(name, entry);
     if (verdict && !verdict.drop) url.searchParams.append(name, verdict.value);
@@ -73,11 +79,15 @@ function cleanUrl(value: string): string | undefined {
 type Verdict = { readonly drop: true } | { readonly drop: false; readonly value: string };
 
 /** Drop a credential, strip credentials out of a URL, or keep the value as it is. */
-function judge(value: string, secretKey: boolean): Verdict & { readonly changed: boolean } {
+function judge(
+  value: string,
+  secretKey: boolean,
+  depth = 0,
+): Verdict & { readonly changed: boolean } {
   const trimmed = value.trim();
   if (!trimmed || REFERENCE.test(trimmed)) return { drop: false, value, changed: false };
   if (secretKey || SECRET_VALUE.test(trimmed)) return { drop: true, changed: true };
-  const cleaned = cleanUrl(trimmed);
+  const cleaned = cleanUrl(trimmed, depth);
   return cleaned === undefined
     ? { drop: false, value, changed: false }
     : { drop: false, value: cleaned, changed: true };

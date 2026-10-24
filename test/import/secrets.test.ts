@@ -211,3 +211,15 @@ it("drops URL fragments and credential values under allowlisted names", () => {
   );
   expect(JSON.stringify(result)).not.toMatch(/sk-live|pw|f1/);
 });
+
+it("drops deeply nested URLs instead of recursing without bound", () => {
+  // Given: thousands of URLs nested through an allowlisted parameter.
+  let url = "https://leaf.example.com/";
+  for (let level = 0; level < 8192; level += 1)
+    url = `https://n${level % 10}.example.com/?location=${url}`;
+  // When: the server is scrubbed.
+  const result = scrubServer({ url });
+  // Then: scrubbing finishes, and the unchecked deep value is gone and reported.
+  expect(String(result.server.url).length).toBeLessThan(1000);
+  expect(result.secrets).toEqual(["url"]);
+});
