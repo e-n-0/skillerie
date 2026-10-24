@@ -198,3 +198,16 @@ it("keeps only allowlisted query parameters, whatever the other names look like"
   expect(result.server.url).toBe("https://mcp.example.com/sse?Region=eu&api-version=2");
   expect(result.secrets).toEqual(["url"]);
 });
+
+it("drops URL fragments and credential values under allowlisted names", () => {
+  // Given: a fragment token, a token-formatted value, and a nested authenticated URL under allowlisted names.
+  const url =
+    "https://mcp.example.com/sse?region=sk-live-0123456789abcdef&location=https%3A%2F%2Fu%3Apw%40files.example.com%2F&format=json#access_token=f1";
+  // When: the server is scrubbed.
+  const result = scrubServer({ url });
+  // Then: only the clean values survive.
+  expect(result.server.url).toBe(
+    "https://mcp.example.com/sse?format=json&location=https%3A%2F%2Ffiles.example.com%2F",
+  );
+  expect(JSON.stringify(result)).not.toMatch(/sk-live|pw|f1/);
+});

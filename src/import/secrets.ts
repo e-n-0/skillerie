@@ -40,7 +40,7 @@ const SAFE_QUERY: ReadonlySet<string> = new Set([
 ]);
 const HEADER_FLAGS = new Set(["-H", "--header"]);
 
-/** A URL without its user, password and query parameters outside SAFE_QUERY; undefined when nothing was removed. */
+/** A URL without user info, fragment, parameters outside SAFE_QUERY, or credential values; undefined when unchanged. */
 function cleanUrl(value: string): string | undefined {
   if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(value)) return undefined;
   let url: URL;
@@ -56,11 +56,17 @@ function cleanUrl(value: string): string | undefined {
     url.password = "";
     changed = true;
   }
-  for (const name of [...url.searchParams.keys()])
-    if (!SAFE_QUERY.has(name.toLowerCase())) {
-      url.searchParams.delete(name);
-      changed = true;
-    }
+  if (url.hash) {
+    url.hash = "";
+    changed = true;
+  }
+  for (const [name, entry] of [...url.searchParams]) {
+    const verdict = SAFE_QUERY.has(name.toLowerCase()) ? judge(entry, false) : undefined;
+    if (verdict?.changed === false) continue;
+    url.searchParams.delete(name, entry);
+    if (verdict && !verdict.drop) url.searchParams.append(name, verdict.value);
+    changed = true;
+  }
   return changed ? url.toString() : undefined;
 }
 
