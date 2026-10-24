@@ -3,6 +3,7 @@ import { Command } from "commander";
 import { CommanderError, Option } from "commander";
 import { existsSync, realpathSync } from "node:fs";
 import { basename, resolve, dirname } from "node:path";
+import { createInterface } from "node:readline/promises";
 import { fileURLToPath } from "node:url";
 import type { Diagnostic } from "./core/types.js";
 import {
@@ -25,12 +26,16 @@ import { isHarness } from "./engine/render.js";
 import { HARNESS_IDS } from "./engine/types.js";
 import { ENGINE_VERSION } from "./version.js";
 import { InstallError } from "./install/index.js";
+import { importRepo, inventoryRepo, selectItems } from "./import/index.js";
+import type { FoundItem, InventoryEntry } from "./import/types.js";
+import type { ValidationResult } from "./engine/types.js";
 
 export interface CliOptions extends EngineOptions {
   readonly stdout?: (text: string) => void;
   readonly stderr?: (text: string) => void;
   /** Colors doctor and outdated output; defaults to whether the real output stream supports colors. */
   readonly color?: boolean;
+  readonly prompt?: (question: string) => Promise<string>;
 }
 
 const SEVERITY_STYLE: Record<Diagnostic["severity"], string> = {
@@ -437,6 +442,184 @@ export function formatStatusReport(
   return `${lines.join("\n")}\n`;
 }
 
+const IMPORT_HEADINGS = {
+  skill: "Skills",
+  agent: "Agents",
+  mcp: "MCP servers",
+  instructions: "Instructions",
+  settings: "Harness settings",
+} as const;
+
+/** Compact inventory; numbering follows the engine's grouped entry order. */
+export function formatImportInventory(
+  entries: readonly InventoryEntry[],
+  options: { readonly color?: boolean; readonly home?: string } = {},
+): string {
+  if (!entries.length)
+    return "Nothing to import: every harness home is empty or already managed by skillerie.\n";
+  const paint = (code: string, text: string) => (options.color ? style(code, text) : text);
+  const lines: string[] = [];
+  for (const kind of ["skill", "agent", "mcp", "instructions", "settings"] as const) {
+    const group = entries.flatMap((entry, index) =>
+      entry.kind === kind ? [{ entry, index }] : [],
+    );
+    if (!group.length) continue;
+    if (lines.length) lines.push("");
+    lines.push(paint("1", `${IMPORT_HEADINGS[kind]}:`));
+    for (const { entry, index } of group) {
+      const notes: string[] = [];
+      if (!entry.identical) notes.push(`differs: pick one (${copyChoices(entry)})`);
+      else if (entry.copies.length > 1) notes.push(`identical in ${entry.copies.length} homes`);
+      if (entry.inRepo === "same") notes.push("already in repo");
+      if (entry.inRepo === "different") notes.push("differs from the repo");
+      const secrets = [
+        ...new Set(entry.copies.flatMap((copy) => ("secrets" in copy ? copy.secrets : []))),
+      ];
+      const excluded = [
+        ...new Set(entry.copies.flatMap((copy) => (copy.kind === "settings" ? copy.excluded : []))),
+      ];
+      const dropped = [...new Set(entry.copies.flatMap((copy) => copy.dropped ?? []))];
+      if (excluded.length) notes.push(`left out: ${excluded.join(", ")}`);
+      if (secrets.length) notes.push(`needs secret: ${secrets.join(", ")}`);
+      if (dropped.length) notes.push(`dropped: ${dropped.join(", ")}`);
+      lines.push(
+        `  ${index + 1}. ${paint("1", entry.name)}  ${entry.copies.map((copy) => copy.source).join(", ")}${notes.length ? `  ${paint("2", notes.join("; "))}` : ""}`,
+      );
+    }
+  }
+  return `${lines.join("\n")}\n`;
+}
+
+function validationSummary(result: ValidationResult, color = false): string {
+  if (!result.model || hasErrors(result.diagnostics)) return formatTally(result.diagnostics, color);
+  const harnesses = HARNESS_IDS.filter((id) => result.snapshot?.config.harnesses[id]?.enabled);
+  const count = (n: number, noun: string) => `${n} ${noun}${n === 1 ? "" : "s"}`;
+  return `${color ? style("32", "Valid") : "Valid"}${result.profile === undefined ? "" : ` (profile ${result.profile})`}: ${count(result.model.skills.length, "skill")}, ${count(result.model.agents.length, "agent")}, ${count(result.model.rules.length, "rule")} for ${harnesses.join(", ")}.`;
+}
+
+/** Imported files, grouped warnings, validation, then the install preview hand-off. */
+export function formatImportResult(
+  result: Awaited<ReturnType<typeof importRepo>>,
+  options: {
+    readonly color?: boolean;
+    readonly home?: string;
+    readonly repo?: string;
+    readonly verbose?: boolean;
+  } = {},
+): string {
+  const paint = (code: string, text: string) => (options.color ? style(code, text) : text);
+  const short = (path: string) =>
+    options.repo && path.startsWith(`${options.repo}/`)
+      ? path.slice(options.repo.length + 1)
+      : options.home && (path === options.home || path.startsWith(`${options.home}/`))
+        ? `~${path.slice(options.home.length)}`
+        : path;
+  const labels = {
+    written: ["imported", "32"],
+    unchanged: ["unchanged", "2"],
+    conflict: ["conflict", "1;31"],
+  } as const;
+  const lines = result.writes.map((write) => {
+    const [label, code] = labels[write.status];
+    return `  ${paint(code, label)} ${write.name}@${write.source} -> ${short(write.target)}${write.note ? ` (${write.note})` : ""}`;
+  });
+  const diagnostics = [...result.diagnostics, ...(result.validation?.diagnostics ?? [])];
+  lines.push(
+    ...formatGroupedDiagnostics(
+      diagnostics.map((diagnostic) => ({
+        ...diagnostic,
+        ...(diagnostic.file === undefined ? {} : { file: short(diagnostic.file) }),
+      })),
+      options,
+    ),
+  );
+  if (result.validation) lines.push(validationSummary(result.validation, options.color));
+  lines.push("Run skillerie install --check to see what install would change.");
+  return `${lines.join("\n")}\n`;
+}
+
+/** Copies with the same content are one choice, labeled with every source that has it. */
+function distinctCopies(
+  entry: InventoryEntry,
+): readonly { readonly copy: FoundItem; readonly label: string }[] {
+  const groups = new Map<string, FoundItem[]>();
+  for (const copy of entry.copies) groups.set(copy.hash, [...(groups.get(copy.hash) ?? []), copy]);
+  return [...groups.values()].map((copies) => ({
+    copy: copies[0] as FoundItem,
+    label: copies.map((copy) => copy.source).join(", "),
+  }));
+}
+
+/** name@source for each distinct copy, noting the sources that share it. */
+function copyChoices(entry: InventoryEntry): string {
+  return distinctCopies(entry)
+    .map(({ copy, label }) =>
+      label === copy.source
+        ? `${entry.name}@${copy.source}`
+        : `${entry.name}@${copy.source} (same as ${label.split(", ").slice(1).join(", ")})`,
+    )
+    .join(", ");
+}
+
+async function pickImports(
+  entries: readonly InventoryEntry[],
+  prompt: (question: string) => Promise<string>,
+): Promise<
+  { readonly items: readonly FoundItem[]; readonly diagnostics: readonly Diagnostic[] } | undefined
+> {
+  const answer = (
+    await prompt("Import which? (numbers like 1,3-5, all, or Enter to cancel): ")
+  ).trim();
+  if (!answer) return undefined;
+  const indices = new Set<number>();
+  const invalid = (message: string): Diagnostic => ({
+    severity: "error",
+    code: "import.selection",
+    message,
+  });
+  if (answer === "all") entries.forEach((_, index) => indices.add(index));
+  else
+    for (const part of answer.split(",")) {
+      const range = /^(\d+)(?:\s*-\s*(\d+))?$/.exec(part.trim());
+      const first = Number(range?.[1]);
+      const last = Number(range?.[2] ?? range?.[1]);
+      if (!Number.isSafeInteger(first) || first < 1 || last < first || last > entries.length)
+        return { items: [], diagnostics: [invalid(`Invalid selection: ${part.trim()}`)] };
+      for (let index = first - 1; index < last; index += 1) indices.add(index);
+    }
+  const items: FoundItem[] = [];
+  const diagnostics: Diagnostic[] = [];
+  for (const [index, entry] of entries.entries()) {
+    if (!indices.has(index) || entry.inRepo === "same") continue;
+    if (entry.identical) {
+      items.push(...selectItems([entry], { all: true }).items);
+      continue;
+    }
+    const choice = (
+      await prompt(
+        `Keep which copy of ${entry.name}? ${distinctCopies(entry)
+          .map(({ label }, i) => `${i + 1}) ${label}`)
+          .join("  ")}: `,
+      )
+    ).trim();
+    const copy = /^\d+$/.test(choice) ? distinctCopies(entry)[Number(choice) - 1]?.copy : undefined;
+    if (copy) items.push(copy);
+    else
+      diagnostics.push(invalid(`${entry.name}: pick one with name@source (${copyChoices(entry)})`));
+  }
+  return { items, diagnostics };
+}
+
+interface ImportCliOptions {
+  readonly repo: string;
+  readonly json?: boolean;
+  readonly profile?: string;
+  readonly harness?: string;
+  readonly all?: boolean;
+  readonly list?: boolean;
+  readonly verbose?: boolean;
+}
+
 /** Injectable engine dependencies exercise the same command path without global mocks. */
 export async function runCli(
   argv: readonly string[] = process.argv.slice(2),
@@ -462,6 +645,153 @@ export async function runCli(
     .option("--json", "Print machine-readable output")
     .exitOverride()
     .configureOutput({ writeOut: stdout, writeErr: () => undefined });
+
+  async function runImport(names: readonly string[], options: ImportCliOptions): Promise<number> {
+    const live =
+      !options.json && dependencies.stderr === undefined && process.stderr.isTTY === true;
+    const engineOptions = {
+      ...dependencies,
+      ...(options.profile === undefined ? {} : { profile: options.profile }),
+      ...(options.harness && isHarness(options.harness) ? { harness: options.harness } : {}),
+      ...(live ? { onProgress: (message: string) => stderr(`\r\x1b[2K${message}...`) } : {}),
+    };
+    if (live) stderr("\r\x1b[2KScanning harness homes...");
+    const inventory = await inventoryRepo(options.repo, engineOptions);
+    if (live) stderr("\r\x1b[2K");
+    // Inventory JSON is metadata only: never serialize imported content or settings values.
+    const entries = inventory.entries.map((entry) => ({
+      ...entry,
+      copies: entry.copies.map((copy) => ({
+        kind: copy.kind,
+        name: copy.name,
+        source: copy.source,
+        path: copy.path,
+        hash: copy.hash,
+        ...(copy.dropped === undefined ? {} : { dropped: copy.dropped }),
+        ...(copy.kind === "settings" ? { excluded: copy.excluded, secrets: copy.secrets } : {}),
+      })),
+    }));
+    const diagnostics = [...inventory.diagnostics];
+    const home = (dependencies.env ?? process.env)["HOME"];
+    const outputOptions = {
+      color: colorOut,
+      ...(home ? { home } : {}),
+      verbose: options.verbose === true,
+    };
+    const printInventory = (code: number) => {
+      if (options.json) stdout(`${JSON.stringify({ entries, diagnostics, exitCode: code })}\n`);
+      else {
+        stdout(formatImportInventory(inventory.entries, outputOptions));
+        for (const line of formatGroupedDiagnostics(diagnostics, {
+          color,
+          verbose: options.verbose === true,
+        }))
+          stderr(`${line}\n`);
+        if (code === 0)
+          stdout(
+            "Run skillerie import <name>... or --all to import, or run it in a terminal to pick.\n",
+          );
+      }
+    };
+    if (hasErrors(diagnostics)) {
+      printInventory(2);
+      return 2;
+    }
+    const interactive =
+      !options.json &&
+      (dependencies.prompt !== undefined ||
+        (process.stdin.isTTY === true && process.stdout.isTTY === true));
+    if (options.list || (!names.length && !options.all && !interactive)) {
+      printInventory(0);
+      return 0;
+    }
+    let items: readonly FoundItem[];
+    if (!names.length && !options.all) {
+      stdout(formatImportInventory(inventory.entries, outputOptions));
+      if (!inventory.entries.length) return 0;
+      let selection;
+      if (dependencies.prompt)
+        selection = await pickImports(inventory.entries, dependencies.prompt);
+      else {
+        const readline = createInterface({ input: process.stdin, output: process.stdout });
+        try {
+          selection = await pickImports(inventory.entries, async (question) => {
+            try {
+              return await readline.question(question);
+            } catch (error) {
+              // Ctrl+D or a closed input stream cancels the pick, like pressing Enter.
+              if (error instanceof Error && "code" in error && error.code === "ABORT_ERR")
+                return "";
+              throw error;
+            }
+          });
+        } finally {
+          readline.close();
+        }
+      }
+      if (!selection) {
+        stdout("Nothing imported.\n");
+        return 0;
+      }
+      items = selection.items;
+      diagnostics.push(...selection.diagnostics);
+    } else {
+      const selection = selectItems(inventory.entries, { names, all: options.all === true });
+      items = selection.items;
+      diagnostics.push(
+        ...selection.unknown.map((name): Diagnostic => ({
+          severity: "error",
+          code: "import.unknown",
+          message: `Unknown import: ${name}`,
+        })),
+        ...selection.ambiguous.map((entry): Diagnostic => ({
+          severity: "error",
+          code: "import.ambiguous",
+          message: `${entry.name}: pick one with name@source (${copyChoices(entry)})`,
+        })),
+      );
+      if (!options.json)
+        for (const entry of selection.skipped)
+          stdout(`  unchanged ${entry.name} (already in repo)\n`);
+    }
+    const result = await importRepo(options.repo, { ...engineOptions, items });
+    const validation = result.validation ?? (await validateRepo(options.repo, engineOptions));
+    if (live) stderr("\r\x1b[2K");
+    const reportDiagnostics = [...diagnostics, ...result.diagnostics];
+    diagnostics.push(...result.diagnostics, ...validation.diagnostics);
+    const code = diagnostics.some(
+      (item) => item.severity === "error" && item.code.startsWith("config."),
+    )
+      ? 2
+      : hasErrors(diagnostics) || result.writes.some((write) => write.status === "conflict")
+        ? 1
+        : 0;
+    if (options.json)
+      stdout(
+        `${JSON.stringify({ entries, writes: result.writes, diagnostics, exitCode: code })}\n`,
+      );
+    else
+      stdout(
+        formatImportResult(
+          { ...result, diagnostics: reportDiagnostics, validation },
+          { ...outputOptions, repo: realpathSync(resolve(options.repo)) },
+        ),
+      );
+    return code;
+  }
+
+  program
+    .command("import [names...]")
+    .description("Copy existing harness content into the config repository")
+    .option("--repo <dir>", "Config repository", process.cwd())
+    .option("--profile <name>", "Profile to use; defaults to the first one in skillerie.yaml")
+    .option("--all", "Import every unambiguous item")
+    .option("--list", "List inventory without importing")
+    .option("--verbose", "Show each warning")
+    .addOption(new Option("--harness <h>", "Scan one harness").choices([...HARNESS_IDS]))
+    .action(async (names: string[], _options: unknown, command: Command) => {
+      exitCode = await runImport(names, command.optsWithGlobals<ImportCliOptions>());
+    });
 
   program
     .command("validate")
@@ -500,13 +830,7 @@ export async function runCli(
         }))
           stderr(`${line}\n`);
         if (result.model && exitCode === 0) {
-          const harnesses = HARNESS_IDS.filter(
-            (id) => result.snapshot?.config.harnesses[id]?.enabled,
-          );
-          const count = (n: number, noun: string) => `${n} ${noun}${n === 1 ? "" : "s"}`;
-          stdout(
-            `${colorOut ? style("32", "Valid") : "Valid"}${result.profile === undefined ? "" : ` (profile ${result.profile})`}: ${count(result.model.skills.length, "skill")}, ${count(result.model.agents.length, "agent")}, ${count(result.model.rules.length, "rule")} for ${harnesses.join(", ")}.\n`,
-          );
+          stdout(`${validationSummary(result, colorOut)}\n`);
         } else stderr(`${formatTally(result.diagnostics, color)}\n`);
       }
     });
@@ -760,6 +1084,7 @@ export async function runCli(
     .command("init [dir]")
     .description("Create a configuration repository")
     .option("--force", "Replace existing scaffold files")
+    .option("--import", "Pick existing harness content after creating the repository")
     .addOption(
       new Option("--harness <h...>", "Enable these harnesses instead of detecting CLIs").choices([
         "opencode",
@@ -770,12 +1095,29 @@ export async function runCli(
     )
     .action(async (dir: string | undefined, _options: unknown, command: Command) => {
       const { runInit } = await import("./init/index.js");
-      exitCode = await runInit(dir ?? process.cwd(), command, {
+      const options = command.optsWithGlobals<{
+        readonly import?: boolean;
+        readonly json?: boolean;
+      }>();
+      const directory = dir ?? process.cwd();
+      const output: string[] = [];
+      exitCode = await runInit(directory, command, {
         ...dependencies,
-        stdout,
+        stdout:
+          options.import && options.json
+            ? (text) => {
+                output.push(text);
+              }
+            : stdout,
         stderr,
         color: colorOut,
       });
+      if (options.import && exitCode === 0)
+        exitCode = await runImport([], {
+          repo: directory,
+          ...(options.json ? { json: true } : {}),
+        });
+      else if (output.length) stdout(output.join(""));
     });
 
   try {
@@ -799,7 +1141,13 @@ export async function runCli(
       ...(error instanceof InstallError && error.file ? {} : { jsonPath: "" }),
     };
     if (argv.includes("--json"))
-      stdout(`${JSON.stringify({ valid: false, diagnostics: [diagnostic] })}\n`);
+      stdout(
+        `${JSON.stringify(
+          program.args[0] === "import"
+            ? { entries: [], diagnostics: [diagnostic], exitCode: 1 }
+            : { valid: false, diagnostics: [diagnostic] },
+        )}\n`,
+      );
     else stderr(`${formatDiagnostic(diagnostic)}\n`);
     return program.args[0] === "outdated" ? 2 : 1;
   }

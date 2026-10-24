@@ -40,6 +40,7 @@ flowchart LR
 - Load community skills straight from GitHub, pinned to a tag or commit. `skillerie outdated` shows which of them changed upstream, and `skillerie update` bumps the pins.
 - Dry-run every install. skillerie backs up anything it replaces, leaves your manual edits alone, and `skillerie uninstall` undoes it all.
 - `validate` catches broken references and invalid frontmatter, and `doctor` has Codex and OpenCode check the config skillerie renders for them.
+- `skillerie import` lets you pick skills, agents, MCP servers, and instructions from existing harness homes and copy them into your config repo without changing the originals.
 
 ## Quickstart
 

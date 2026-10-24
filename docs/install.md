@@ -4,13 +4,13 @@ skillerie works in two stages. Rendering turns your repository into a generation
 
 ## Commands
 
-All commands take `--repo <dir>` (default: the current directory) and the global `--json` flag, which prints one JSON object instead of text.
+Commands that read a config repository take `--repo <dir>` (default: the current directory); `init` takes its destination as an argument. All commands accept the global `--json` flag, which prints one JSON object instead of text.
 
 ### Profiles
 
-When `skillerie.yaml` defines [profiles](config.md#profiles), `validate`, `sync`, `outdated`, `install`, `uninstall`, `status`, and `doctor` accept `--profile <name>`. Without it, the first profile in the file is used. An unknown name fails with `config.profile.unknown` and lists the profiles you can pick.
+When `skillerie.yaml` defines [profiles](config.md#profiles), `validate`, `import`, `sync`, `outdated`, `update`, `install`, `uninstall`, `status`, and `doctor` accept `--profile <name>`. Without it, the first profile in the file is used. An unknown name fails with `config.profile.unknown` and lists the profiles you can pick.
 
-When a profile is applied, `install`, `uninstall`, `status` and `sync` start with `Profile: <name>`, and the JSON output of every command except `outdated` has a `profile` field. Neither appears for a configuration without profiles.
+When a profile is applied, `install`, `uninstall`, `status` and `sync` start with `Profile: <name>`. Their JSON output and `validate` JSON include a `profile` field. Neither appears for a configuration without profiles.
 
 ### validate
 
@@ -23,6 +23,47 @@ Loads `skillerie.yaml`, discovers sources, evaluates `requires`, runs lint rules
 The other commands group warnings the same way, and `--verbose` shows each one.
 
 For external skills, diagnostic file locations use `<url>@<short-sha>/<path inside repository>` rather than the cache path. The same origin locations appear in JSON diagnostics and in the other commands.
+
+### import
+
+```sh
+skillerie import [names...] [--repo <dir>] [--profile <name>] [--harness <h>] [--all] [--list] [--verbose]
+skillerie import --list
+skillerie import notes review@codex
+skillerie import codex/config.toml opencode/opencode.jsonc@opencode
+skillerie import --all
+```
+
+Inventories existing skills, agents, MCP servers, global instructions, and harness settings, then copies selected items into the config repository's configured source paths. It scans OpenCode, Codex, OMO, and Pi homes, including disabled harnesses, using configured paths or their environment-aware defaults. Without `--harness`, it also scans shared skills in `~/.agents/skills` and `~/.claude/skills`, Claude agents, and `~/.claude/CLAUDE.md`. `--harness` restricts the scan to `opencode`, `codex`, `omo`, or `pi`.
+
+The inventory groups numbered rows under Skills, Agents, MCP servers, Instructions, and Harness settings. Each row lists its name, sources, and any differences, repository match, removed agent fields, or missing secret fields. Settings rows show `left out: ...` for excluded keys and `needs secret: ...` for removed secret paths. Identical copies form one entry; copies with different content require a choice such as `review@codex`. A plain name selects matching entries across kinds.
+
+With no names, a terminal prompts for numbers such as `1,3-5`, `all`, or Enter to cancel. Each selected entry with differing copies gets a second prompt to choose its source. `--list`, or running without names in a non-interactive shell, only prints the inventory and a selection hint. `--all` copies unambiguous entries and leaves differing copies for explicit selection; it never silently picks one. Settings use the same selection syntax, with names such as `codex/config.toml` or `mcp-settings@pi`. For automation, `--json` prints `entries`, optional `writes`, `diagnostics`, and `exitCode`. Inventory copies include source and path metadata, not file contents or settings values; settings copies also include `excluded` keys and removed `secrets` paths.
+
+Settings files are scanned at the following default locations; configured homes and environment overrides still apply:
+
+<!-- prettier-ignore -->
+| Harness | Settings files |
+|-|-|
+| OpenCode | `~/.config/opencode/opencode.jsonc` (preferred over `opencode.json`) and `~/.config/opencode/tui.json` |
+| Codex | `~/.codex/config.toml` |
+| OMO | `~/.omo/omo.jsonc`, `~/.omo/agent/models.json`, and the `settings` object in `~/.omo/agent/mcp.json` |
+| Pi | `~/.pi/agent/settings.json` and the `settings` object in `~/.pi/agent/mcp.json` |
+
+Native settings become `harnesses/<harness>/templates/<file>` in the config repository, under the configured harness source path. The `settings` objects from OMO and Pi MCP files form a shared `mcp-settings` entry and go into the repository's `mcp.json`, not a harness template.
+
+Import leaves out content owned or generated elsewhere:
+
+- MCP server sections (`mcp` in OpenCode, `mcp_servers` in Codex, and `mcpServers` in Pi settings) are excluded from templates; MCP servers are imported separately.
+- Keys skillerie derives are omitted: Codex's `mcp_oauth_callback_port` and `mcp_oauth_callback_url`, OpenCode's generated `rules/*.md` instruction reference, and OMO's `[native].agents` definitions. OMO agents are imported separately.
+- State Codex writes itself is left out: `projects`, `notice`, `tui`, and `plugins`. Local trust decisions, dismissed notices, UI state, and plugin state should not become shared templates.
+- Secret-looking values are removed recursively from settings, and credentials are scrubbed from MCP servers. Notes name the missing fields, never their values. Restore credentials through environment or file references; existing references are preserved.
+
+Import only copies: it never edits, moves, or deletes anything in a scanned home. It excludes content skillerie already manages, including cache links, owned manifest entries, and managed blocks, and Codex's built-in `.system` skills. Unreadable or invalid settings files produce `import.settings` warnings rather than aborting the scan. Unsupported agent fields are dropped and reported.
+
+Existing repository items are left alone: matching content is unchanged, and differing skills, agents, or MCP content is a conflict. Selected instructions fill `instructions.md` only when it is missing, empty, or still the scaffold. Otherwise they go to `instructions.imported.md` for you to review and merge; an existing different imported file is a conflict. Differing native settings templates go to `imported/<harness>/<file>` so you can review and merge them into `harnesses/<harness>/templates/<file>` by hand. Result lines show that review path and the merge note.
+
+After copying, import validates the repository and suggests `skillerie install --check`. Exit status is 0 on success, 1 for conflicts, unknown names, unresolved differing copies, or validation errors, and 2 for configuration errors. Independent selections are still imported when another requested item fails.
 
 ### sync
 
@@ -131,10 +172,12 @@ External inspection stays offline: it reads cached skills and reports each entry
 ### init
 
 ```sh
-skillerie init [dir] [--harness <h...>] [--force]
+skillerie init [dir] [--harness <h...>] [--force] [--import]
 ```
 
 Creates `skillerie.yaml`, `instructions.md`, `mcp.json`, empty `skills/`, `agents/`, and `rules/` directories, a `.gitignore`, and a `package.json` pinning skillerie to the current minor version. Without `--harness`, it enables the harnesses whose CLIs are on `PATH`. If any of those files already exists, `init` lists them and exits 1 without writing; `--force` replaces only the scaffold files and leaves everything else in the directory alone.
+
+`--import` runs the import flow after a successful scaffold: pick existing content in a terminal, or list it in a non-interactive shell. The init harness selection controls which harnesses are enabled, not which homes import inventories. The next steps also include `npx skillerie import` before validation.
 
 ## Generations
 
