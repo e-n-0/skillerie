@@ -55,7 +55,7 @@ function judge(value: string, secretKey: boolean): Verdict & { readonly changed:
 
 /** Names without word boundaries (APITOKEN, APIToken2, APIKEYV2) are caught by their credential ending. */
 const SECRET_QUERY_SUFFIX =
-  /(token|secret|password|passwd|apikey|privatekey|signature|credentials?|sessionid)(v?\d+)?$/;
+  /(token|secret|password|passwd|apikey|privatekey|signature|credentials?|sessionid)(v?\d+)?$|(^|[^o])auth(orization)?v?\d+$/;
 
 function compact(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]/g, "");

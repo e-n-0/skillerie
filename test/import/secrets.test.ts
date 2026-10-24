@@ -206,3 +206,18 @@ it("catches credential parameters with a version suffix", () => {
     "keyword",
   ]);
 });
+
+it("catches versioned auth parameters but not OAuth names", () => {
+  // Given: versioned auth parameters beside OAuth parameters.
+  const server = {
+    url: "https://mcp.example.com/sse?AUTHORIZATIONV2=w1&authv2=w2&oauthv2=x&OAuthIssuer=y&keyword=docs",
+  };
+  // When: the server is scrubbed.
+  const result = scrubServer(server);
+  // Then: only the auth credentials are removed.
+  expect([...new URL(String(result.server.url)).searchParams.keys()]).toEqual([
+    "oauthv2",
+    "OAuthIssuer",
+    "keyword",
+  ]);
+});
