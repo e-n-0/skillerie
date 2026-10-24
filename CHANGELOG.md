@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.18 - 2026-10-24
+
+### Features
+
+- New `skillerie import` lists the skills, agents, instructions, MCP servers and harness settings already in your harness homes and copies the ones you pick into the config repository, without secrets and without touching the harness homes. Settings become templates; an existing different template is never overwritten. `init --import` runs it after scaffolding. (#17)
+
 ## 0.0.17 - 2026-10-23
 
 ### Fixes
