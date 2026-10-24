@@ -14,13 +14,12 @@ You are setting up skillerie for a user. Command details are in [install.md](ins
 
 ## Importing an existing setup
 
-Ask which of these to import. Copy, don't move: the originals stay in place until `install` backs them up.
+From the config repository, run `npx skillerie import --list` and review the inventory with the user. Then run `npx skillerie import <name>...`, or `npx skillerie import --all` for every unambiguous item. In a terminal, `npx skillerie import` offers an interactive picker. A new repository can use `npx skillerie init <dir> --import` to go straight to this step. See [import](install.md#import) for scan locations and selection syntax.
 
-- **Skills:** directories with a `SKILL.md` in `~/.config/opencode/skills`, `~/.codex/skills` (skip `.system`), `~/.omo/agent/skills`, `~/.pi/agent/skills`, `~/.agents/skills` and `~/.claude/skills`. Copy each into `skills/<name>/` with its support files. Skip symlinks into `~/.cache/skillerie`, which skillerie already manages. When two copies share a name, show the user the differences and keep one.
-- **Public skills:** if a skill is an unmodified copy of one on GitHub, add a [`skills.external`](config.md#skillsexternal) entry pinned with `ref` instead of copying it.
-- **Agents:** Markdown agents with frontmatter from `~/.config/opencode/agents` and `~/.claude/agents` go into `agents/<name>.md`.
-- **Instructions:** merge the user's global `AGENTS.md` or `CLAUDE.md` into `instructions.md`, and show the result before saving.
-- **MCP servers:** translate existing definitions into the `mcpServers` map of [`mcp.json`](config.md#mcpjson).
+- **Differing copies:** show the user the differences and choose the intended copy with `name@source`, for example `review@codex`. Do not assume the first copy is authoritative.
+- **Public skills:** if a skill is an unmodified copy of one on GitHub, use a [`skills.external`](config.md#skillsexternal) entry pinned with `ref` instead of keeping a local copy.
+- **Instructions:** review the selected instructions. If import creates `instructions.imported.md`, show the proposed merge into `instructions.md` before saving it.
+- **MCP secrets and agent fields:** review the reported missing secret fields and dropped agent settings. Restore credentials through environment or file references, not literal values in the repository.
 
 ## Rules
 

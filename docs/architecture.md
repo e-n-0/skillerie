@@ -38,7 +38,8 @@ silently selecting defaults.
 - `src/lint/index.ts` owns semantic validation of the merged model.
 - `src/fs/index.ts` owns generation storage, activation, and freshness comparison.
 - `src/adapters/index.ts` registers lazy loaders for the four built-in adapters.
-- `src/cli.ts` exposes validate, sync, install, uninstall, status, outdated, update, doctor, and init.
+- `src/cli.ts` exposes validate, import, sync, install, uninstall, status, outdated, update, doctor, and init. `init --import` hands off to the same import flow after scaffolding.
+- `src/import/` inventories unmanaged harness content, groups copies, and copies selected items into repository sources without changing harness homes.
 - `src/version.ts` declares engine, configuration, and dialect versions.
 
 ## Adapter contract

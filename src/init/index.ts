@@ -53,6 +53,7 @@ export async function runInit(
         "Next steps:",
         `  ${bold(`cd ${directory}`)}`,
         `  ${bold("npm install")}`,
+        `  ${bold("npx skillerie import")}`,
         `  ${bold("npx skillerie validate")}`,
         `  ${bold("npx skillerie sync")}`,
         `  ${bold("npx skillerie install --check")}`,
