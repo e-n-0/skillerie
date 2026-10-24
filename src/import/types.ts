@@ -1,9 +1,9 @@
-import type { Diagnostic, Environment, HarnessId, McpServer } from "../core/types.js";
+import type { Diagnostic, Environment, HarnessId, JsonObject, McpServer } from "../core/types.js";
 
 /** Where an item was found: a harness home, or a shared location several harnesses read. */
 export type ImportSource = HarnessId | "agents" | "claude";
 
-export type ImportKind = "skill" | "agent" | "instructions" | "mcp";
+export type ImportKind = "skill" | "agent" | "instructions" | "mcp" | "settings";
 
 interface FoundBase {
   readonly kind: ImportKind;
@@ -44,7 +44,21 @@ export interface FoundMcp extends FoundBase {
   readonly secrets: readonly string[];
 }
 
-export type FoundItem = FoundSkill | FoundAgent | FoundInstructions | FoundMcp;
+export interface FoundSettings extends FoundBase {
+  readonly kind: "settings";
+  readonly source: HarnessId;
+  /** "<harness>/<template file>", such as "codex/config.toml", or "mcp-settings" for an MCP file's settings object. */
+  readonly name: string;
+  readonly format: "json" | "toml";
+  /** The settings to write, with excluded keys and secrets removed; hash is hashJson of this value. */
+  readonly value: JsonObject;
+  /** Keys left out because skillerie or the harness owns them, such as "mcp_servers" or "projects". */
+  readonly excluded: readonly string[];
+  /** Dotted paths removed because they looked like secrets; values are never kept. */
+  readonly secrets: readonly string[];
+}
+
+export type FoundItem = FoundSkill | FoundAgent | FoundInstructions | FoundMcp | FoundSettings;
 
 export interface ScanContext {
   readonly env: Environment;

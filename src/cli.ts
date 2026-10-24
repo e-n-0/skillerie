@@ -447,6 +447,7 @@ const IMPORT_HEADINGS = {
   agent: "Agents",
   mcp: "MCP servers",
   instructions: "Instructions",
+  settings: "Harness settings",
 } as const;
 
 /** Compact inventory; numbering follows the engine's grouped entry order. */
@@ -458,7 +459,7 @@ export function formatImportInventory(
     return "Nothing to import: every harness home is empty or already managed by skillerie.\n";
   const paint = (code: string, text: string) => (options.color ? style(code, text) : text);
   const lines: string[] = [];
-  for (const kind of ["skill", "agent", "mcp", "instructions"] as const) {
+  for (const kind of ["skill", "agent", "mcp", "instructions", "settings"] as const) {
     const group = entries.flatMap((entry, index) =>
       entry.kind === kind ? [{ entry, index }] : [],
     );
@@ -472,9 +473,13 @@ export function formatImportInventory(
       if (entry.inRepo === "same") notes.push("already in repo");
       if (entry.inRepo === "different") notes.push("differs from the repo");
       const secrets = [
-        ...new Set(entry.copies.flatMap((copy) => (copy.kind === "mcp" ? copy.secrets : []))),
+        ...new Set(entry.copies.flatMap((copy) => ("secrets" in copy ? copy.secrets : []))),
+      ];
+      const excluded = [
+        ...new Set(entry.copies.flatMap((copy) => (copy.kind === "settings" ? copy.excluded : []))),
       ];
       const dropped = [...new Set(entry.copies.flatMap((copy) => copy.dropped ?? []))];
+      if (excluded.length) notes.push(`left out: ${excluded.join(", ")}`);
       if (secrets.length) notes.push(`needs secret: ${secrets.join(", ")}`);
       if (dropped.length) notes.push(`dropped: ${dropped.join(", ")}`);
       lines.push(
@@ -653,16 +658,17 @@ export async function runCli(
     if (live) stderr("\r\x1b[2KScanning harness homes...");
     const inventory = await inventoryRepo(options.repo, engineOptions);
     if (live) stderr("\r\x1b[2K");
-    // Inventory JSON is metadata only: never serialize agent, instruction, or MCP content.
+    // Inventory JSON is metadata only: never serialize imported content or settings values.
     const entries = inventory.entries.map((entry) => ({
       ...entry,
-      copies: entry.copies.map(({ kind, name, source, path, hash, dropped }) => ({
-        kind,
-        name,
-        source,
-        path,
-        hash,
-        ...(dropped === undefined ? {} : { dropped }),
+      copies: entry.copies.map((copy) => ({
+        kind: copy.kind,
+        name: copy.name,
+        source: copy.source,
+        path: copy.path,
+        hash: copy.hash,
+        ...(copy.dropped === undefined ? {} : { dropped: copy.dropped }),
+        ...(copy.kind === "settings" ? { excluded: copy.excluded, secrets: copy.secrets } : {}),
       })),
     }));
     const diagnostics = [...inventory.diagnostics];

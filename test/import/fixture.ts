@@ -3,6 +3,9 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import type { Environment } from "../../src/core/types.js";
 
+/** Provider key written into the OpenCode settings; it must never reach the repository. */
+export const PROVIDER_KEY = "fake-provider-key-0123456789"; // gitleaks:allow (fake value for secret tests)
+
 /** Bearer value written into the OpenCode MCP config; it must never reach the repository. */
 export const SECRET_TOKEN = "sk-live-0123456789abcdef"; // gitleaks:allow (fake value for secret tests)
 
@@ -19,6 +22,11 @@ const skill = (name: string, body = "Review the change.\n") =>
  * - instructions: opencode and codex "Use pnpm." identical; omo "Prefer bun." differs; claude CLAUDE.md differs.
  * - mcp docs: opencode, secret headers.Authorization removed. mcp tracker: opencode and codex identical.
  * - mcp search: omo and pi identical. skipped: codex "managed" server inside a skillerie block.
+ * - settings opencode/opencode.jsonc: $schema, model; excluded mcp; secret provider.anthropic.options.apiKey.
+ * - settings opencode/tui.json. settings codex/config.toml: model, approval_policy; excluded mcp_servers,
+ *   mcp_oauth_callback_port, projects, notice, plugins, tui. settings omo/omo.jsonc: telemetry.
+ * - settings omo/models.json: secret providers.local.apiKey. settings pi/settings.json: theme, enableSkillCommands.
+ * - settings mcp-settings: omo and pi identical {timeoutMs: 30000}.
  */
 export async function importFixture() {
   const root = await realpath(await mkdtemp(join(tmpdir(), "skillerie-import-")));
@@ -50,11 +58,16 @@ export async function importFixture() {
     "---\ndescription: Use when planning work.\nmode: subagent\nmodel: anthropic/claude\n---\nPlan before coding.\n",
   );
   await put(join(opencode, "AGENTS.md"), "Use pnpm.\n");
+  await put(join(opencode, "tui.json"), '{\n  "theme": "tokyonight"\n}\n');
   await put(
     join(opencode, "opencode.jsonc"),
     `{
   // user config
   "$schema": "https://opencode.ai/config.json",
+  "model": "anthropic/claude-sonnet",
+  "provider": {
+    "anthropic": { "options": { "apiKey": "${PROVIDER_KEY}" } } // gitleaks:allow (fake value)
+  },
   "mcp": {
     "docs": {
       "type": "remote",
@@ -82,6 +95,8 @@ export async function importFixture() {
   await put(
     join(codex, "config.toml"),
     `model = "gpt-5"
+approval_policy = "on-request"
+mcp_oauth_callback_port = 3118
 
 [mcp_servers.tracker]
 command = "node"
@@ -90,6 +105,18 @@ default_tools_approval_mode = "auto"
 
 [mcp_servers.tracker.env]
 TRACKER_URL = "https://tracker.example.com"
+
+[projects."/work/app"]
+trust_level = "trusted"
+
+[notice]
+hide_full_access_warning = true
+
+[plugins."gmail@openai-curated"]
+enabled = true
+
+[tui]
+theme = "dark"
 
 # skillerie:codex.mcp.tables:begin
 [mcp_servers.managed]
@@ -102,7 +129,23 @@ url = "https://managed.example.com/mcp"
   await put(join(omo, "AGENTS.md"), "Prefer bun.\n");
   await put(
     join(omo, "mcp.json"),
-    JSON.stringify({ mcpServers: { search: { url: "https://search.example.com/mcp" } } }, null, 2),
+    JSON.stringify(
+      {
+        mcpServers: { search: { url: "https://search.example.com/mcp" } },
+        settings: { timeoutMs: 30000 },
+      },
+      null,
+      2,
+    ),
+  );
+  await put(join(home, ".omo", "omo.jsonc"), '{\n  // OMO settings\n  "telemetry": false\n}\n');
+  await put(
+    join(omo, "models.json"),
+    JSON.stringify(
+      { providers: { local: { baseUrl: "http://localhost:11434", apiKey: PROVIDER_KEY } } },
+      null,
+      2,
+    ),
   );
 
   await put(join(pi, "skills/review/SKILL.md"), skill("review", "Review it the Pi way.\n"));
@@ -113,8 +156,16 @@ url = "https://managed.example.com/mcp"
   );
   await put(
     join(pi, "mcp.json"),
-    JSON.stringify({ mcpServers: { search: { url: "https://search.example.com/mcp" } } }, null, 2),
+    JSON.stringify(
+      {
+        mcpServers: { search: { url: "https://search.example.com/mcp" } },
+        settings: { timeoutMs: 30000 },
+      },
+      null,
+      2,
+    ),
   );
+  await put(join(pi, "settings.json"), '{\n  "theme": "dark",\n  "enableSkillCommands": true\n}\n');
 
   await put(join(home, ".agents/skills/shared-tool/SKILL.md"), skill("shared-tool"));
   await put(join(home, ".claude/skills/claude-only/SKILL.md"), skill("claude-only"));

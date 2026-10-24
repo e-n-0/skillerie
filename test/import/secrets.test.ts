@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { scrubServer } from "../../src/import/secrets.js";
+import { scrubServer, scrubSettings } from "../../src/import/secrets.js";
 
 it("removes secret header and env values but keeps references and plain settings", () => {
   // Given: a server mixing inline secrets, environment references and plain values.
@@ -49,4 +49,32 @@ it("leaves a server without secrets untouched", () => {
   const result = scrubServer(server);
   // Then: nothing changes.
   expect(result).toEqual({ server, secrets: [] });
+});
+
+it("removes secret settings at any depth and keeps plain words and references", () => {
+  // Given: provider keys nested in settings, a credential store mode, and an environment reference.
+  const settings = {
+    model: "anthropic/claude",
+    mcp_oauth_credentials_store: "keyring",
+    provider: {
+      anthropic: {
+        options: { apiKey: "fake-provider-key-0123456789", baseURL: "https://api.example.com" },
+      },
+      local: { options: { apiKey: "{env:LOCAL_KEY}" } },
+    },
+    headers: [{ name: "x", client_secret: "abcdefghijklmnop" }],
+  };
+  // When: the settings are scrubbed.
+  const result = scrubSettings(settings);
+  // Then: only the secret values are removed and reported by path.
+  expect(result.value).toEqual({
+    model: "anthropic/claude",
+    mcp_oauth_credentials_store: "keyring",
+    provider: {
+      anthropic: { options: { baseURL: "https://api.example.com" } },
+      local: { options: { apiKey: "{env:LOCAL_KEY}" } },
+    },
+    headers: [{ name: "x" }],
+  });
+  expect(result.secrets).toEqual(["provider.anthropic.options.apiKey", "headers.0.client_secret"]);
 });

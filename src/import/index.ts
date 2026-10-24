@@ -3,6 +3,7 @@ import { realpathSync } from "node:fs";
 import { readFile, readdir } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { parse, type ParseError } from "jsonc-parser";
+import { parse as parseToml } from "smol-toml";
 import { registry } from "../adapters/index.js";
 import { configDocument } from "../config/document.js";
 import { loadConfig } from "../config/index.js";
@@ -24,15 +25,15 @@ import { scanSkillDirectories } from "./skills.js";
 import type { FoundItem, ImportSource, ImportWrite, InventoryEntry, ScanContext } from "./types.js";
 import { writeImport } from "./write.js";
 
-const kindOrder = { skill: 0, agent: 1, mcp: 2, instructions: 3 } as const;
+const kindOrder = { skill: 0, agent: 1, mcp: 2, instructions: 3, settings: 4 } as const;
 const sourceOrder = { opencode: 0, codex: 1, omo: 2, pi: 3, agents: 4, claude: 5 } as const;
 
 function missing(error: Error): boolean {
   return "code" in error && error.code === "ENOENT";
 }
 
-function readDiagnostic(file: string, error: Error): Diagnostic {
-  return { severity: "warn", code: "import.read", message: error.message, file };
+function readDiagnostic(file: string, error: Error, code = "import.read"): Diagnostic {
+  return { severity: "warn", code, message: error.message, file };
 }
 
 function realPath(path: string, diagnostics: Diagnostic[]): string | undefined {
@@ -68,8 +69,12 @@ async function repositoryStates(
   diagnostics: Diagnostic[],
 ): Promise<readonly InventoryEntry[]> {
   let servers: JsonObject = {};
+  let settings: unknown;
   let invalidMcp = false;
-  if (groups.some((copies) => copies[0]?.kind === "mcp")) {
+  const hasMcpSettings = groups.some(
+    (copies) => copies[0]?.kind === "settings" && copies[0].name === "mcp-settings",
+  );
+  if (hasMcpSettings || groups.some((copies) => copies[0]?.kind === "mcp")) {
     try {
       const errors: ParseError[] = [];
       const value: unknown = parse(await readFile(sources.mcp, "utf8"), errors, {
@@ -82,10 +87,13 @@ async function repositoryStates(
       )
         throw new TypeError("Expected an MCP JSON object with a mcpServers mapping.");
       servers = value["mcpServers"] ?? {};
+      settings = value["settings"];
     } catch (error) {
       if (!(error instanceof Error)) throw error;
       if (!missing(error)) {
-        diagnostics.push(readDiagnostic(sources.mcp, error));
+        diagnostics.push(
+          readDiagnostic(sources.mcp, error, hasMcpSettings ? "import.settings" : "import.read"),
+        );
         invalidMcp = true;
       }
     }
@@ -121,6 +129,34 @@ async function repositoryStates(
           if (content && content !== template?.trim()) hash = hashText(content);
           break;
         }
+        case "settings": {
+          if (item.name === "mcp-settings") {
+            file = sources.mcp;
+            invalid = invalidMcp;
+            if (settings !== undefined) {
+              if (!isJsonObject(settings)) throw new TypeError("Expected an MCP settings object.");
+              if (Object.keys(settings).length) hash = hashJson(settings);
+            }
+            break;
+          }
+          const slash = item.name.indexOf("/");
+          file = join(
+            sources.harnesses,
+            item.name.slice(0, slash),
+            "templates",
+            item.name.slice(slash + 1),
+          );
+          const content = await readFile(file, "utf8");
+          const errors: ParseError[] = [];
+          const value: unknown =
+            item.format === "toml"
+              ? parseToml(content)
+              : parse(content, errors, { allowTrailingComma: true });
+          if (errors.length || (item.format === "json" && !isJsonObject(value)))
+            throw new TypeError("Expected a settings object.");
+          hash = hashJson(value);
+          break;
+        }
         default: {
           const exhaustive: never = item;
           return exhaustive;
@@ -129,7 +165,9 @@ async function repositoryStates(
     } catch (error) {
       if (!(error instanceof Error)) throw error;
       if (!missing(error)) {
-        diagnostics.push(readDiagnostic(file, error));
+        diagnostics.push(
+          readDiagnostic(file, error, item.kind === "settings" ? "import.settings" : "import.read"),
+        );
         invalid = true;
       }
     }
@@ -336,7 +374,11 @@ export async function importRepo(
   const loaded = await loadConfig(repoDir, env, options);
   if (!loaded.config || hasErrors(loaded.diagnostics))
     return { writes: [], diagnostics: loaded.diagnostics };
-  const result = await writeImport({ sources: loaded.config.sources, items: options.items });
+  const result = await writeImport({
+    repo: loaded.config.paths.repo,
+    sources: loaded.config.sources,
+    items: options.items,
+  });
   const validation = result.writes.some((write) => write.status === "written")
     ? await validateRepo(repoDir, { ...options, env })
     : undefined;

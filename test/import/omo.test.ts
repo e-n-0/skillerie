@@ -2,8 +2,9 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import type { ScanContext } from "../../src/import/types.js";
+import type { FoundSettings, ScanContext } from "../../src/import/types.js";
 import { scanOmo } from "../../src/import/omo.js";
+import { PROVIDER_KEY } from "./fixture.js";
 
 const roots: string[] = [];
 
@@ -61,7 +62,7 @@ describe("scanOmo", () => {
 
     // Then supported entries are fingerprinted and secret values are removed
     expect(result.diagnostics).toEqual([]);
-    expect(result.items).toHaveLength(3);
+    expect(result.items).toHaveLength(4);
     expect(result.items.find((item) => item.kind === "instructions")).toMatchObject({
       name: "instructions",
       content: instructions,
@@ -76,6 +77,104 @@ describe("scanOmo", () => {
       markdown: expect.stringContaining("Start with a plan."),
       dropped: ["model"],
     });
+    expect(result.items.find((item) => item.kind === "settings")).toMatchObject({
+      name: "omo/omo.jsonc",
+      format: "json",
+      value: {},
+      excluded: ["[native].agents"],
+    });
+  });
+
+  it("extracts settings while excluding agents and scrubbing secrets", async () => {
+    // Given OMO settings with native agents, provider credentials, and MCP settings
+    const { home, agentDir } = await createHome();
+    await writeFile(
+      join(home, "omo.jsonc"),
+      `{
+        // Settings are imported, but native agents are scanned separately.
+        "telemetry": false,
+        "[native]": {
+          "theme": "dark",
+          "agents": { "planner": { "description": "Plan.", "prompt": "Plan." } }
+        }
+      }`,
+    );
+    await writeFile(
+      join(agentDir, "models.json"),
+      JSON.stringify({
+        providers: { local: { baseUrl: "http://localhost:11434", apiKey: PROVIDER_KEY } },
+      }),
+    );
+    await writeFile(
+      join(agentDir, "mcp.json"),
+      JSON.stringify({ mcpServers: {}, settings: { timeoutMs: 30000 } }),
+    );
+
+    // When the OMO home is scanned
+    const result = await scanOmo(home, agentDir, context());
+    const settings = result.items.filter((item): item is FoundSettings => item.kind === "settings");
+
+    // Then ordinary values remain, excluded paths are reported, and secret values are absent
+    expect(result.diagnostics).toEqual([]);
+    expect(settings).toHaveLength(3);
+    expect(settings.find((item) => item.name === "omo/omo.jsonc")).toMatchObject({
+      format: "json",
+      value: { telemetry: false, "[native]": { theme: "dark" } },
+      excluded: ["[native].agents"],
+      secrets: [],
+    });
+    expect(settings.find((item) => item.name === "omo/models.json")).toMatchObject({
+      format: "json",
+      value: { providers: { local: { baseUrl: "http://localhost:11434" } } },
+      excluded: [],
+      secrets: ["providers.local.apiKey"],
+    });
+    expect(settings.find((item) => item.name === "mcp-settings")).toMatchObject({
+      format: "json",
+      value: { timeoutMs: 30000 },
+      excluded: [],
+      secrets: [],
+    });
+    expect(JSON.stringify(settings)).not.toContain(PROVIDER_KEY);
+  });
+
+  it("skips a managed settings file", async () => {
+    // Given a models file already managed by skillerie
+    const { home, agentDir } = await createHome();
+    const modelsPath = join(agentDir, "models.json");
+    await writeFile(modelsPath, JSON.stringify({ providers: { local: { apiKey: "hidden" } } }));
+
+    // When that managed home is scanned
+    const result = await scanOmo(
+      home,
+      agentDir,
+      context((path) => path === modelsPath),
+    );
+
+    // Then the managed file is not imported
+    expect(result.items).toEqual([]);
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("returns a warning for invalid settings JSON", async () => {
+    // Given an invalid models settings file
+    const { home, agentDir } = await createHome();
+    const modelsPath = join(agentDir, "models.json");
+    await writeFile(modelsPath, '{"providers": {');
+
+    // When the OMO home is scanned
+    const result = await scanOmo(home, agentDir, context());
+
+    // Then the settings parse failure is reported as a warning
+    expect(result.diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          severity: "warn",
+          code: "import.settings",
+          file: modelsPath,
+        }),
+      ]),
+    );
   });
 
   it("skips a managed instructions path", async () => {

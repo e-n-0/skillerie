@@ -19,7 +19,8 @@ From the config repository, run `npx skillerie import --list` and review the inv
 - **Differing copies:** show the user the differences and choose the intended copy with `name@source`, for example `review@codex`. Do not assume the first copy is authoritative.
 - **Public skills:** if a skill is an unmodified copy of one on GitHub, use a [`skills.external`](config.md#skillsexternal) entry pinned with `ref` instead of keeping a local copy.
 - **Instructions:** review the selected instructions. If import creates `instructions.imported.md`, show the proposed merge into `instructions.md` before saving it.
-- **MCP secrets and agent fields:** review the reported missing secret fields and dropped agent settings. Restore credentials through environment or file references, not literal values in the repository.
+- **Harness settings:** review imported templates in `harnesses/<harness>/templates/` and the reported excluded keys. If an existing template differs, review `imported/<harness>/<file>` with the user and merge the intended settings into the template by hand. Review shared `mcp-settings` in the repository's `mcp.json` too.
+- **Secrets and agent fields:** review the reported missing secret fields in settings and MCP servers, and dropped agent settings. Restore credentials through environment or file references, not literal values in the repository.
 
 ## Rules
 

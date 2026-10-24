@@ -1,11 +1,12 @@
 import { access, readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
+import { parse as parseToml } from "smol-toml";
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { formatImportInventory, formatImportResult, runCli } from "../../src/cli.js";
 import type { CliOptions } from "../../src/cli.js";
 import { validateRepo } from "../../src/engine/index.js";
 import { inventoryRepo } from "../../src/import/index.js";
-import { importFixture, SECRET_TOKEN } from "../import/fixture.js";
+import { importFixture, PROVIDER_KEY, SECRET_TOKEN } from "../import/fixture.js";
 
 let fixture: Awaited<ReturnType<typeof importFixture>>;
 
@@ -35,7 +36,7 @@ async function command(args: readonly string[], options: Pick<CliOptions, "promp
 }
 
 it("lists grouped inventory without secrets or writes when --list is given", async () => {
-  // Given: every supported home, differing copies, managed content, and one secret.
+  // Given: every supported home, differing copies, managed content, and secrets.
   // When: the CLI only inventories the setup.
   const result = await command(["import", "--repo", fixture.repo, "--list"]);
   // Then: compact rows explain each choice without exposing source content or paths.
@@ -51,8 +52,17 @@ it("lists grouped inventory without secrets or writes when --list is given", asy
   expect(result.stdout).toContain("tracker  opencode, codex  identical in 2 homes");
   expect(result.stdout).toContain("Instructions:");
   expect(result.stdout).toContain("instructions@omo");
+  expect(result.stdout).toMatch(/Instructions:[\s\S]*Harness settings:/);
+  expect(result.stdout).toContain(
+    "codex/config.toml  codex  left out: mcp_servers, mcp_oauth_callback_port, projects, notice, tui, plugins",
+  );
+  expect(result.stdout).toContain(
+    "opencode/opencode.jsonc  opencode  left out: mcp; needs secret: provider.anthropic.options.apiKey",
+  );
+  expect(result.stdout).toContain("mcp-settings  omo, pi  identical in 2 homes");
   expect(result.stdout).toContain("Run skillerie import <name>...");
   expect(result.stdout + result.stderr).not.toContain(SECRET_TOKEN);
+  expect(result.stdout + result.stderr).not.toContain(PROVIDER_KEY);
   expect(result.stdout).not.toContain(fixture.home);
   expect(result.stdout).not.toContain("managed-skill");
   expect(result.stdout).not.toContain("builtin");
@@ -70,8 +80,9 @@ it("only lists inventory when no selection is provided outside a terminal", asyn
 });
 
 it("imports unambiguous items but exits one when --all leaves differing copies", async () => {
-  // Given: review and instructions differ between homes, and docs contains a token.
+  // Given: review and instructions differ between homes, and settings and MCP contain secrets.
   const originalMcp = await readFile(join(fixture.homes.opencode, "opencode.jsonc"), "utf8");
+  const originalCodex = await readFile(join(fixture.homes.codex, "config.toml"), "utf8");
   // When: every item is requested through the CLI.
   const result = await command(["import", "--repo", fixture.repo, "--all"]);
   // Then: independent items are copied and validated, while unresolved copies stay out.
@@ -79,6 +90,9 @@ it("imports unambiguous items but exits one when --all leaves differing copies",
   expect(result.stdout + result.stderr).toContain("review: pick one with name@source");
   expect(result.stdout + result.stderr).toContain("instructions: pick one with name@source");
   expect(result.stdout).toContain("imported notes@omo");
+  expect(result.stdout).toContain(
+    "imported codex/config.toml@codex -> harnesses/codex/templates/config.toml",
+  );
   expect(result.stdout).toContain("unchanged existing");
   expect(result.stdout).toContain("headers.Authorization");
   expect(result.stdout).toMatch(/Valid: \d+ skills, \d+ agents, \d+ rules/);
@@ -99,14 +113,73 @@ it("imports unambiguous items but exits one when --all leaves differing copies",
   });
   const mcp = await readFile(join(fixture.repo, "mcp.json"), "utf8");
   expect(JSON.parse(mcp)).toMatchObject({
+    settings: { timeoutMs: 30000 },
     mcpServers: {
       docs: { url: "https://docs.example.com/mcp" },
       search: { url: "https://search.example.com/mcp" },
       tracker: { command: "node", args: ["/opt/tracker.js"] },
     },
   });
-  expect(mcp + result.stdout + result.stderr).not.toContain(SECRET_TOKEN);
+  const codex = await readFile(join(fixture.repo, "harnesses/codex/templates/config.toml"), "utf8");
+  expect(parseToml(codex)).toEqual({ model: "gpt-5", approval_policy: "on-request" });
+  const files = await readdir(fixture.repo, { recursive: true, withFileTypes: true });
+  const contents = await Promise.all(
+    files
+      .filter((file) => file.isFile())
+      .map((file) => readFile(join(file.parentPath, file.name), "utf8")),
+  );
+  for (const secret of [SECRET_TOKEN, PROVIDER_KEY])
+    expect(contents.join("") + result.stdout + result.stderr).not.toContain(secret);
   expect(await readFile(join(fixture.homes.opencode, "opencode.jsonc"), "utf8")).toBe(originalMcp);
+  expect(await readFile(join(fixture.homes.codex, "config.toml"), "utf8")).toBe(originalCodex);
+});
+
+it.each(["codex/config.toml", "codex/config.toml@codex"])(
+  "imports only the requested settings template when %s is selected",
+  async (name) => {
+    // Given: a settings file among skills, agents, instructions, and MCP servers.
+    // When: its plain or source-qualified name is requested.
+    const result = await command(["import", name, "--repo", fixture.repo, "--json"]);
+    // Then: settings use the same name selection and write reporting as other kinds.
+    expect(result.code, result.stderr).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      writes: [
+        {
+          kind: "settings",
+          name: "codex/config.toml",
+          source: "codex",
+          target: join(fixture.repo, "harnesses/codex/templates/config.toml"),
+          status: "written",
+          note: expect.stringContaining("left out: mcp_servers"),
+        },
+      ],
+      exitCode: 0,
+    });
+    expect(
+      parseToml(
+        await readFile(join(fixture.repo, "harnesses/codex/templates/config.toml"), "utf8"),
+      ),
+    ).toEqual({ model: "gpt-5", approval_policy: "on-request" });
+    expect(await readdir(join(fixture.repo, "skills"))).toEqual(["existing"]);
+    expect(await readFile(join(fixture.repo, "mcp.json"), "utf8")).toBe('{"mcpServers":{}}\n');
+  },
+);
+
+it("reports the imported path and merge note when a settings template differs", async () => {
+  // Given: an existing Codex template that must remain authoritative.
+  const template = join(fixture.repo, "harnesses/codex/templates/config.toml");
+  const original = 'model = "repo-model"\n';
+  await fixture.put(template, original);
+  // When: the differing harness settings are selected.
+  const result = await command(["import", "codex/config.toml", "--repo", fixture.repo]);
+  // Then: the result names the review file and explains the manual merge.
+  expect(result.code, result.stdout + result.stderr).toBe(0);
+  expect(result.stdout).toContain("imported codex/config.toml@codex -> imported/codex/config.toml");
+  expect(result.stdout).toContain("merge imported/codex/config.toml into it");
+  expect(await readFile(template, "utf8")).toBe(original);
+  expect(
+    parseToml(await readFile(join(fixture.repo, "imported/codex/config.toml"), "utf8")),
+  ).toEqual({ model: "gpt-5", approval_policy: "on-request" });
 });
 
 it("imports a requested source and its support files when a name is qualified", async () => {
@@ -193,6 +266,37 @@ it("selects ranges once when the interactive answer overlaps numbers", async () 
   expect(result.stdout.match(/imported notes@omo/g)).toHaveLength(1);
 });
 
+it("imports numbered settings and their chosen source with the interactive picker", async () => {
+  // Given: MCP settings differ between OMO and Pi.
+  await fixture.put(
+    join(fixture.homes.pi, "mcp.json"),
+    '{"mcpServers": {}, "settings": {"timeoutMs": 9000}}\n',
+  );
+  const { entries } = await inventoryRepo(fixture.repo, { env: fixture.env });
+  const row = entries.findIndex(
+    (entry) => entry.kind === "settings" && entry.name === "mcp-settings",
+  );
+  expect(row).toBeGreaterThanOrEqual(0);
+  const answers = [String(row + 1), "2"];
+  // When: the settings row and its Pi copy are chosen.
+  const result = await command(["import", "--repo", fixture.repo], {
+    prompt: async () => {
+      const answer = answers.shift();
+      if (answer === undefined) throw new Error("Unexpected extra prompt");
+      return answer;
+    },
+  });
+  // Then: only the selected settings are written, not MCP servers or unrelated content.
+  expect(result.code, result.stdout + result.stderr).toBe(0);
+  expect(answers).toEqual([]);
+  expect(result.stdout).toContain("imported mcp-settings@pi -> mcp.json");
+  expect(JSON.parse(await readFile(join(fixture.repo, "mcp.json"), "utf8"))).toEqual({
+    mcpServers: {},
+    settings: { timeoutMs: 9000 },
+  });
+  expect(await readdir(join(fixture.repo, "skills"))).toEqual(["existing"]);
+});
+
 it("cancels without writes when the interactive answer is empty", async () => {
   // Given: an injected terminal picker.
   // When: the user presses Enter.
@@ -225,7 +329,7 @@ it("never prompts or serializes content when JSON inventory is requested", async
       throw new Error("JSON output must not prompt");
     },
   });
-  // Then: one metadata envelope includes locations but no server or Markdown contents.
+  // Then: one metadata envelope includes locations and settings notes but no imported values.
   expect(result.code, result.stderr).toBe(0);
   expect(JSON.parse(result.stdout)).toMatchObject({
     entries: expect.arrayContaining([
@@ -238,12 +342,28 @@ it("never prompts or serializes content when JSON inventory is requested", async
           }),
         ]),
       }),
+      expect.objectContaining({
+        kind: "settings",
+        name: "opencode/opencode.jsonc",
+        copies: [
+          {
+            kind: "settings",
+            name: "opencode/opencode.jsonc",
+            source: "opencode",
+            path: join(fixture.homes.opencode, "opencode.jsonc"),
+            hash: expect.any(String),
+            excluded: ["mcp"],
+            secrets: ["provider.anthropic.options.apiKey"],
+          },
+        ],
+      }),
     ]),
     diagnostics: [],
     exitCode: 0,
   });
-  expect(result.stdout).not.toMatch(/"(markdown|content|server)":/);
+  expect(result.stdout).not.toMatch(/"(markdown|content|server|value)":/);
   expect(result.stdout).not.toContain(SECRET_TOKEN);
+  expect(result.stdout).not.toContain(PROVIDER_KEY);
   expect(result.stderr).toBe("");
 });
 

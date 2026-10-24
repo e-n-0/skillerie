@@ -6,7 +6,7 @@ import type { TomlTable, TomlValue } from "smol-toml";
 import type { Diagnostic, JsonValue, McpServer } from "../core/types.js";
 import { unmanaged } from "../install/merges.js";
 import { agentMarkdown, hashJson, hashText } from "./shared.js";
-import { scrubServer } from "./secrets.js";
+import { scrubServer, scrubSettings } from "./secrets.js";
 import type { FoundItem, ScanContext, ScanResult } from "./types.js";
 
 function message(error: unknown): string {
@@ -172,6 +172,16 @@ function withoutManagedBlocks(content: string): string {
   return result;
 }
 
+const excludedSettingsKeys = [
+  "mcp_servers",
+  "mcp_oauth_callback_port",
+  "mcp_oauth_callback_url",
+  "projects",
+  "notice",
+  "tui",
+  "plugins",
+] as const;
+
 export async function scanCodex(home: string, ctx: ScanContext): Promise<ScanResult> {
   const items: FoundItem[] = [];
   const diagnostics: Diagnostic[] = [];
@@ -249,6 +259,41 @@ export async function scanCodex(home: string, ctx: ScanContext): Promise<ScanRes
   if (!ctx.managed(configFile)) {
     try {
       const config = parseToml(withoutManagedBlocks(await readFile(configFile, "utf8")));
+      const settings: Record<string, JsonValue> = {};
+      const excluded = excludedSettingsKeys.filter((key) => config[key] !== undefined);
+      let settingsValid = true;
+      for (const [key, value] of Object.entries(config)) {
+        if ((excludedSettingsKeys as readonly string[]).includes(key)) continue;
+        const converted = jsonValue(value);
+        if (converted === undefined) {
+          warn(
+            diagnostics,
+            "import.settings",
+            configFile,
+            `Setting ${key} cannot be represented as JSON.`,
+          );
+          settingsValid = false;
+          break;
+        }
+        settings[key] = converted;
+      }
+      if (settingsValid && Object.keys(settings).length) {
+        const scrubbed = scrubSettings(settings);
+        if (Object.keys(scrubbed.value).length) {
+          items.push({
+            kind: "settings",
+            name: "codex/config.toml",
+            source: "codex",
+            path: configFile,
+            format: "toml",
+            value: scrubbed.value,
+            excluded,
+            secrets: scrubbed.secrets,
+            hash: hashJson(scrubbed.value),
+          });
+        }
+      }
+
       const serversValue = config["mcp_servers"];
       if (serversValue !== undefined) {
         const servers = tomlTable(serversValue);
@@ -276,8 +321,10 @@ export async function scanCodex(home: string, ctx: ScanContext): Promise<ScanRes
         }
       }
     } catch (error) {
-      if (!(error instanceof Error)) throw error;
-      if (!missing(error)) warn(diagnostics, "import.mcp", configFile, message(error));
+      if (!missing(error)) {
+        warn(diagnostics, "import.mcp", configFile, message(error));
+        warn(diagnostics, "import.settings", configFile, message(error));
+      }
     }
   }
 

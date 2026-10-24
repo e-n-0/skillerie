@@ -2,11 +2,11 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { parse, printParseErrorCode } from "jsonc-parser";
 import type { ParseError } from "jsonc-parser";
-import type { Diagnostic, McpServer } from "../core/types.js";
+import type { Diagnostic, JsonObject, JsonValue, McpServer } from "../core/types.js";
 import { isJsonObject, pointerToken } from "../model/json.js";
 import { agentMarkdown, hashJson, hashText } from "./shared.js";
-import { scrubServer } from "./secrets.js";
-import type { FoundItem, ScanContext, ScanResult } from "./types.js";
+import { scrubServer, scrubSettings } from "./secrets.js";
+import type { FoundItem, FoundSettings, ScanContext, ScanResult } from "./types.js";
 
 function lineAt(text: string, offset: number): number {
   return text.slice(0, offset).split(/\r\n|\r|\n/).length;
@@ -18,6 +18,7 @@ function parseDocument(
   code: string,
   diagnostics: Diagnostic[],
   jsonc: boolean,
+  severity: "error" | "warn" = "error",
 ): unknown {
   const errors: ParseError[] = [];
   const value: unknown = parse(
@@ -27,7 +28,7 @@ function parseDocument(
   );
   for (const error of errors) {
     diagnostics.push({
-      severity: "error",
+      severity,
       code,
       message: printParseErrorCode(error.error),
       file,
@@ -45,6 +46,7 @@ async function readUnmanaged(
   path: string,
   ctx: ScanContext,
   diagnostics: Diagnostic[],
+  settingsFile = false,
 ): Promise<string | undefined> {
   if (ctx.managed(path)) return undefined;
   try {
@@ -52,8 +54,8 @@ async function readUnmanaged(
   } catch (error) {
     if (missingFile(error)) return undefined;
     diagnostics.push({
-      severity: "error",
-      code: "import.read",
+      severity: settingsFile ? "warn" : "error",
+      code: settingsFile ? "import.settings" : "import.read",
       message: error instanceof Error ? error.message : "Unable to read file.",
       file: path,
     });
@@ -204,6 +206,120 @@ function scanAgents(
   }
 }
 
+function addSettings(
+  value: JsonObject,
+  file: string,
+  name: string,
+  format: "json" | "toml",
+  items: FoundItem[],
+  excludeNativeAgents = false,
+): void {
+  let settings: Record<string, JsonValue> = { ...value };
+  const excluded: string[] = [];
+  if (excludeNativeAgents) {
+    const native = settings["[native]"];
+    if (isJsonObject(native) && Object.hasOwn(native, "agents")) {
+      const remaining = Object.fromEntries(
+        Object.entries(native).filter(([key]) => key !== "agents"),
+      ) as JsonObject;
+      settings = { ...settings };
+      if (Object.keys(remaining).length === 0) delete settings["[native]"];
+      else settings["[native]"] = remaining;
+      excluded.push("[native].agents");
+    }
+  }
+  const { value: sanitized, secrets } = scrubSettings(settings);
+  const found: FoundSettings = {
+    kind: "settings",
+    name,
+    source: "omo",
+    path: file,
+    format,
+    value: sanitized,
+    excluded,
+    secrets,
+    hash: hashJson(sanitized),
+  };
+  items.push(found);
+}
+
+function scanSettings(
+  text: string,
+  file: string,
+  name: string,
+  jsonc: boolean,
+  diagnostics: Diagnostic[],
+  items: FoundItem[],
+  excludeNativeAgents = false,
+): void {
+  const previousDiagnostics = diagnostics.length;
+  const value = parseDocument(text, file, "import.settings", diagnostics, jsonc, "warn");
+  if (value === undefined) {
+    if (diagnostics.length === previousDiagnostics) {
+      diagnostics.push({
+        severity: "warn",
+        code: "import.settings",
+        message: "Expected a settings object.",
+        file,
+      });
+    }
+    return;
+  }
+  if (!isJsonObject(value)) {
+    diagnostics.push({
+      severity: "warn",
+      code: "import.settings",
+      message: "Expected a settings object.",
+      file,
+    });
+    return;
+  }
+  addSettings(value, file, name, "json", items, excludeNativeAgents);
+}
+
+function scanMcpSettings(
+  text: string,
+  file: string,
+  diagnostics: Diagnostic[],
+  items: FoundItem[],
+): void {
+  const previousDiagnostics = diagnostics.length;
+  const value = parseDocument(text, file, "import.settings", diagnostics, false, "warn");
+  if (value === undefined) {
+    if (diagnostics.length === previousDiagnostics) {
+      diagnostics.push({
+        severity: "warn",
+        code: "import.settings",
+        message: "Expected an object containing settings.",
+        file,
+      });
+    }
+    return;
+  }
+  if (!isJsonObject(value)) {
+    diagnostics.push({
+      severity: "warn",
+      code: "import.settings",
+      message: "Expected an object containing settings.",
+      file,
+    });
+    return;
+  }
+  const settings = value["settings"];
+  if (settings === undefined) return;
+  if (!isJsonObject(settings)) {
+    diagnostics.push({
+      severity: "warn",
+      code: "import.settings",
+      message: "Skipping MCP settings with an unsupported shape.",
+      file,
+      jsonPath: "/settings",
+    });
+    return;
+  }
+  if (Object.keys(settings).length > 0) addSettings(settings, file, "mcp-settings", "json", items);
+}
+
 export async function scanOmo(
   home: string,
   agentDir: string,
@@ -226,12 +342,23 @@ export async function scanOmo(
   }
 
   const mcpPath = join(agentDir, "mcp.json");
-  const mcp = await readUnmanaged(mcpPath, ctx, diagnostics);
-  if (mcp !== undefined) scanMcp(mcp, mcpPath, diagnostics, items);
+  const mcp = await readUnmanaged(mcpPath, ctx, diagnostics, true);
+  if (mcp !== undefined) {
+    scanMcp(mcp, mcpPath, diagnostics, items);
+    scanMcpSettings(mcp, mcpPath, diagnostics, items);
+  }
 
   const agentsPath = join(home, "omo.jsonc");
-  const agents = await readUnmanaged(agentsPath, ctx, diagnostics);
-  if (agents !== undefined) scanAgents(agents, agentsPath, diagnostics, items);
+  const agents = await readUnmanaged(agentsPath, ctx, diagnostics, true);
+  if (agents !== undefined) {
+    scanAgents(agents, agentsPath, diagnostics, items);
+    scanSettings(agents, agentsPath, "omo/omo.jsonc", true, diagnostics, items, true);
+  }
+
+  const modelsPath = join(agentDir, "models.json");
+  const models = await readUnmanaged(modelsPath, ctx, diagnostics, true);
+  if (models !== undefined)
+    scanSettings(models, modelsPath, "omo/models.json", false, diagnostics, items);
 
   return { items, diagnostics };
 }

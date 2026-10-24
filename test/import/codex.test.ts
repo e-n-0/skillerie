@@ -128,13 +128,82 @@ url = "https://managed.example.com/mcp"
   expect(result.diagnostics).toEqual([]);
 });
 
+it("imports Codex settings without owned keys or secrets", async () => {
+  // Given: Codex config with user settings, harness-owned keys, and a secret.
+  const secret = "sk-live-0123456789abcdef"; // gitleaks:allow (fake value for secret tests)
+  const file = await put(
+    "config.toml",
+    `model = "gpt-5"
+approval_policy = "on-request"
+api_key = "${secret}"
+mcp_oauth_callback_port = 3118
+mcp_oauth_callback_url = "http://localhost:3118/callback"
+
+[mcp_servers.docs]
+url = "https://docs.example.com/mcp"
+
+[projects."/work/app"]
+trust_level = "trusted"
+
+[notice]
+hide_full_access_warning = true
+
+[tui]
+theme = "dark"
+
+[plugins."codex@example"]
+enabled = true
+`,
+  );
+
+  // When: the Codex home is scanned.
+  const result = await scanCodex(home, context());
+
+  // Then: user values remain, owned keys are listed, and secret values are absent.
+  const settings = result.items.find((item) => item.kind === "settings");
+  expect(settings).toMatchObject({
+    kind: "settings",
+    name: "codex/config.toml",
+    source: "codex",
+    path: file,
+    format: "toml",
+    value: { model: "gpt-5", approval_policy: "on-request" },
+    excluded: [
+      "mcp_servers",
+      "mcp_oauth_callback_port",
+      "mcp_oauth_callback_url",
+      "projects",
+      "notice",
+      "tui",
+      "plugins",
+    ],
+    secrets: ["api_key"],
+  });
+  if (settings?.kind !== "settings") throw new Error("Expected imported Codex settings.");
+  expect(settings.hash).toBe(hashJson(settings.value));
+  expect(JSON.stringify(result)).not.toContain(secret);
+  expect(result.diagnostics).toEqual([]);
+});
+
+it("omits Codex settings when only excluded keys remain", async () => {
+  // Given: a config containing only the MCP section that is imported separately.
+  await put("config.toml", '[mcp_servers.docs]\nurl = "https://docs.example.com/mcp"\n');
+
+  // When: the Codex home is scanned.
+  const result = await scanCodex(home, context());
+
+  // Then: the server is imported, but no empty settings template is created.
+  expect(result.items.map((item) => item.kind)).toEqual(["mcp"]);
+  expect(result.items.some((item) => item.kind === "settings")).toBe(false);
+});
+
 it("skips Codex paths already managed by skillerie", async () => {
-  // Given: valid Codex inputs whose paths are all marked as managed.
+  // Given: settings-bearing Codex inputs whose paths are all marked as managed.
   const agentPath = await put("agents/auditor.toml", 'description = "Audit dependencies."\n');
   const instructionsPath = await put("AGENTS.md", "Use pnpm.\n");
   const configPath = await put(
     "config.toml",
-    '[mcp_servers.docs]\nurl = "https://docs.example.com"\n',
+    'model = "gpt-5"\n[mcp_servers.docs]\nurl = "https://docs.example.com"\n',
   );
   const managed = new Set([agentPath, instructionsPath, configPath]);
 
@@ -165,4 +234,22 @@ it("reports invalid Codex agent TOML", async () => {
       file,
     }),
   ]);
+});
+
+it("reports invalid Codex settings TOML", async () => {
+  // Given: a config file containing invalid TOML.
+  const file = await put("config.toml", 'model = "unterminated\n');
+
+  // When: the Codex home is scanned.
+  const result = await scanCodex(home, context());
+
+  // Then: the invalid settings file is skipped with a settings diagnostic.
+  expect(result.items).toEqual([]);
+  expect(result.diagnostics).toContainEqual(
+    expect.objectContaining({
+      severity: "warn",
+      code: "import.settings",
+      file,
+    }),
+  );
 });

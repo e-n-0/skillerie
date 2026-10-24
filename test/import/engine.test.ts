@@ -1,10 +1,12 @@
 import { createHash } from "node:crypto";
 import { lstat, mkdir, readFile, readdir, readlink, rm, symlink } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { parse as parseJsonc } from "jsonc-parser";
+import { parse as parseToml } from "smol-toml";
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { importRepo, inventoryRepo, selectItems } from "../../src/import/index.js";
 import { hashText } from "../../src/import/shared.js";
-import { importFixture, SECRET_TOKEN } from "./fixture.js";
+import { importFixture, PROVIDER_KEY, SECRET_TOKEN } from "./fixture.js";
 
 let fixture: Awaited<ReturnType<typeof importFixture>>;
 
@@ -81,6 +83,95 @@ it("inventories exactly the fixture groups and excludes managed and built-in con
       identical: false,
       inRepo: "absent",
     },
+    {
+      kind: "settings",
+      name: "codex/config.toml",
+      sources: ["codex"],
+      identical: true,
+      inRepo: "absent",
+    },
+    {
+      kind: "settings",
+      name: "mcp-settings",
+      sources: ["omo", "pi"],
+      identical: true,
+      inRepo: "absent",
+    },
+    {
+      kind: "settings",
+      name: "omo/models.json",
+      sources: ["omo"],
+      identical: true,
+      inRepo: "absent",
+    },
+    {
+      kind: "settings",
+      name: "omo/omo.jsonc",
+      sources: ["omo"],
+      identical: true,
+      inRepo: "absent",
+    },
+    {
+      kind: "settings",
+      name: "opencode/opencode.jsonc",
+      sources: ["opencode"],
+      identical: true,
+      inRepo: "absent",
+    },
+    {
+      kind: "settings",
+      name: "opencode/tui.json",
+      sources: ["opencode"],
+      identical: true,
+      inRepo: "absent",
+    },
+    {
+      kind: "settings",
+      name: "pi/settings.json",
+      sources: ["pi"],
+      identical: true,
+      inRepo: "absent",
+    },
+  ]);
+  expect(
+    result.entries.flatMap((entry) =>
+      entry.copies.flatMap((copy) =>
+        copy.kind === "settings"
+          ? [
+              {
+                name: copy.name,
+                source: copy.source,
+                excluded: copy.excluded,
+                secrets: copy.secrets,
+              },
+            ]
+          : [],
+      ),
+    ),
+  ).toEqual([
+    {
+      name: "codex/config.toml",
+      source: "codex",
+      excluded: ["mcp_servers", "mcp_oauth_callback_port", "projects", "notice", "tui", "plugins"],
+      secrets: [],
+    },
+    { name: "mcp-settings", source: "omo", excluded: [], secrets: [] },
+    { name: "mcp-settings", source: "pi", excluded: [], secrets: [] },
+    {
+      name: "omo/models.json",
+      source: "omo",
+      excluded: [],
+      secrets: ["providers.local.apiKey"],
+    },
+    { name: "omo/omo.jsonc", source: "omo", excluded: [], secrets: [] },
+    {
+      name: "opencode/opencode.jsonc",
+      source: "opencode",
+      excluded: ["mcp"],
+      secrets: ["provider.anthropic.options.apiKey"],
+    },
+    { name: "opencode/tui.json", source: "opencode", excluded: [], secrets: [] },
+    { name: "pi/settings.json", source: "pi", excluded: [], secrets: [] },
   ]);
   const review = result.entries.find((entry) => entry.name === "review");
   expect(review?.copies[0]).toMatchObject({ files: ["SKILL.md", "scripts/check.sh"] });
@@ -102,6 +193,7 @@ it("inventories exactly the fixture groups and excludes managed and built-in con
     { source: "claude", path: join(fixture.home, ".claude") },
   ]);
   expect(JSON.stringify(result)).not.toContain(SECRET_TOKEN);
+  expect(JSON.stringify(result)).not.toContain(PROVIDER_KEY);
   expect(await homeSnapshot(fixture.home)).toEqual(before);
 });
 
@@ -125,6 +217,13 @@ it("requires choices for differing copies and skips items already in the reposit
     "docs@opencode",
     "search@omo",
     "tracker@opencode",
+    "codex/config.toml@codex",
+    "mcp-settings@omo",
+    "omo/models.json@omo",
+    "omo/omo.jsonc@omo",
+    "opencode/opencode.jsonc@opencode",
+    "opencode/tui.json@opencode",
+    "pi/settings.json@pi",
   ]);
 });
 
@@ -314,6 +413,7 @@ it("scans Omo runtime agents separately from its configured agent content direct
     "skill:custom",
     "agent:native",
     "instructions:instructions",
+    "settings:omo/omo.jsonc",
   ]);
   expect(result.entries[1]?.copies[0]?.path).toBe(join(home, "omo.jsonc"));
   expect(result.entries[2]?.copies[0]?.path).toBe(join(agentDir, "AGENTS.md"));
@@ -321,7 +421,10 @@ it("scans Omo runtime agents separately from its configured agent content direct
 
 it("excludes exact manifest targets without mistaking cache path prefixes for ownership", async () => {
   // Given: a manifest owns ordinary files, and a foreign skill links beside the cache.
-  const target = join(fixture.homes.opencode, "agents/planner.md");
+  const targets = [
+    join(fixture.homes.opencode, "agents/planner.md"),
+    join(fixture.homes.opencode, "tui.json"),
+  ];
   await fixture.put(
     join(fixture.homes.opencode, ".skillerie/manifest.json"),
     JSON.stringify({
@@ -330,9 +433,13 @@ it("excludes exact manifest targets without mistaking cache path prefixes for ow
       engineVersion: "0.0.0",
       repo: { path: fixture.repo, configHash: "fixture" },
       createdDirectories: [],
-      entries: [
-        { target, kind: "owned", fingerprint: "fixture", preimage: { kind: "absent" }, merges: [] },
-      ],
+      entries: targets.map((target) => ({
+        target,
+        kind: "owned",
+        fingerprint: "fixture",
+        preimage: { kind: "absent" },
+        merges: [],
+      })),
     }),
   );
   const foreign = `${fixture.cache}-foreign`;
@@ -347,6 +454,7 @@ it("excludes exact manifest targets without mistaking cache path prefixes for ow
   expect(result.diagnostics).toEqual([]);
   expect(result.entries.some((entry) => entry.name === "planner")).toBe(false);
   expect(result.entries.some((entry) => entry.name === "managed-skill")).toBe(false);
+  expect(result.entries.some((entry) => entry.name === "opencode/tui.json")).toBe(false);
   expect(result.entries.find((entry) => entry.name === "foreign")).toMatchObject({
     kind: "skill",
     copies: [{ source: "opencode" }],
@@ -387,6 +495,128 @@ it("compares complete repository skills, agent text, canonical MCP and trimmed i
   ]);
 });
 
+it.each([
+  {
+    name: "opencode/tui.json",
+    template: "opencode/templates/tui.json",
+    content: '{\n // repository formatting\n "theme": "tokyonight",\n}\n',
+    inRepo: "same",
+    warning: false,
+  },
+  {
+    name: "opencode/tui.json",
+    template: "opencode/templates/tui.json",
+    content: '{"theme":"light"}',
+    inRepo: "different",
+    warning: false,
+  },
+  {
+    name: "codex/config.toml",
+    template: "codex/templates/config.toml",
+    content: '# repository order\napproval_policy = "on-request"\nmodel = "gpt-5"\n',
+    inRepo: "same",
+    warning: false,
+  },
+  {
+    name: "codex/config.toml",
+    template: "codex/templates/config.toml",
+    content: 'model = "other"\n',
+    inRepo: "different",
+    warning: false,
+  },
+  {
+    name: "opencode/tui.json",
+    template: "opencode/templates/tui.json",
+    content: '{"theme":',
+    inRepo: "different",
+    warning: true,
+  },
+  {
+    name: "opencode/tui.json",
+    template: "opencode/templates/tui.json",
+    content: "[]",
+    inRepo: "different",
+    warning: true,
+  },
+  {
+    name: "codex/config.toml",
+    template: "codex/templates/config.toml",
+    content: 'model = "unterminated',
+    inRepo: "different",
+    warning: true,
+  },
+  {
+    name: "opencode/tui.json",
+    template: "opencode/templates/tui.json",
+    content: undefined,
+    inRepo: "different",
+    warning: true,
+  },
+])(
+  "compares $name as $inRepo for template $content",
+  async ({ name, template, content, inRepo, warning }) => {
+    // Given: an existing repository template with independent content or an unreadable directory.
+    const file = join(fixture.repo, "harnesses", template);
+    if (content === undefined) await mkdir(file, { recursive: true });
+    else await fixture.put(file, content);
+    // When: settings are compared using their native format.
+    const result = await inventoryRepo(fixture.repo, { env: fixture.env });
+    // Then: semantic equality ignores formatting, while malformed or unreadable settings differ.
+    expect(result.entries.find((entry) => entry.name === name)?.inRepo).toBe(inRepo);
+    expect(result.diagnostics).toMatchObject(
+      warning ? [{ severity: "warn", code: "import.settings", file }] : [],
+    );
+  },
+);
+
+it.each([
+  { content: undefined, inRepo: "absent", warning: false },
+  { content: '{"mcpServers":{}}', inRepo: "absent", warning: false },
+  { content: '{"settings":{}}', inRepo: "absent", warning: false },
+  { content: '{"settings":{"timeoutMs":30000}}', inRepo: "same", warning: false },
+  { content: '{"settings":{"timeoutMs":1000}}', inRepo: "different", warning: false },
+  { content: '{"settings":[]}', inRepo: "different", warning: true },
+  { content: "{invalid", inRepo: "different", warning: true },
+])(
+  "compares MCP settings as $inRepo for repository $content",
+  async ({ content, inRepo, warning }) => {
+    // Given: MCP settings exist without any source servers, and the repository varies independently.
+    await fixture.put(
+      join(fixture.homes.omo, "mcp.json"),
+      '{"mcpServers":{},"settings":{"timeoutMs":30000}}',
+    );
+    const file = join(fixture.repo, "mcp.json");
+    if (content === undefined) await rm(file);
+    else await fixture.put(file, content);
+    // When: only OMO is inventoried, so settings alone must trigger the repository MCP read.
+    const result = await inventoryRepo(fixture.repo, { env: fixture.env, harness: "omo" });
+    // Then: missing or empty settings are absent, while invalid files warn instead of throwing.
+    expect(result.entries.find((entry) => entry.name === "mcp-settings")?.inRepo).toBe(inRepo);
+    expect(result.diagnostics).toMatchObject(
+      warning ? [{ severity: "warn", code: "import.settings", file }] : [],
+    );
+  },
+);
+
+it("matches repository MCP settings against a non-first differing copy", async () => {
+  // Given: OMO and Pi settings differ, and the repository matches only Pi.
+  await fixture.put(
+    join(fixture.homes.pi, "mcp.json"),
+    '{"mcpServers":{},"settings":{"timeoutMs":1000}}',
+  );
+  await fixture.put(join(fixture.repo, "mcp.json"), '{"settings":{"timeoutMs":1000}}');
+  // When: all source copies are compared to the repository.
+  const result = await inventoryRepo(fixture.repo, { env: fixture.env });
+  // Then: identity detects the conflict, but a match against any copy counts as already imported.
+  expect(result.diagnostics).toEqual([]);
+  expect(result.entries.find((entry) => entry.name === "mcp-settings")).toMatchObject({
+    identical: false,
+    inRepo: "same",
+    copies: [{ source: "omo" }, { source: "pi" }],
+  });
+  expect(selectItems(result.entries, { names: ["mcp-settings"] }).items).toEqual([]);
+});
+
 it("marks a skill different when a repository support file differs", async () => {
   // Given: matching skill markdown but different support-file bytes.
   const root = join(fixture.repo, "skills/review");
@@ -425,12 +655,13 @@ it("returns diagnostics for unreadable repository files and an invalid manifest"
   // When: the engine inventories otherwise valid home content.
   const result = await inventoryRepo(fixture.repo, { env: fixture.env });
   // Then: expected file failures are reported without throwing or losing independent inventory.
-  expect(result.entries).toHaveLength(13);
+  expect(result.entries).toHaveLength(20);
   expect(result.diagnostics.map((diagnostic) => diagnostic.file).sort()).toEqual(
     [join(fixture.repo, "agents/planner.md"), join(fixture.repo, "mcp.json"), manifest].sort(),
   );
   expect(result.entries.find((entry) => entry.name === "planner")?.inRepo).toBe("different");
   expect(result.entries.find((entry) => entry.name === "docs")?.inRepo).toBe("different");
+  expect(result.entries.find((entry) => entry.name === "mcp-settings")?.inRepo).toBe("different");
 });
 
 it.each(["inventory", "import"] as const)(
@@ -489,11 +720,15 @@ it("imports resolved selections, validates the repository and preserves every ha
   const result = await importRepo(fixture.repo, { env: fixture.env, items: selected.items });
   // Then: every selected item is written, validation is clean, and no harness home is changed.
   expect(selected.ambiguous).toEqual([]);
-  expect(selected.items).toHaveLength(12);
-  expect(result.writes).toHaveLength(12);
+  expect(selected.items).toHaveLength(19);
+  expect(result.writes).toHaveLength(19);
   expect(result.writes.every((write) => write.status === "written")).toBe(true);
   expect(result.writes.every((write) => write.target.startsWith(`${fixture.repo}/`))).toBe(true);
-  expect(result.diagnostics).toMatchObject([{ severity: "warn", code: "import.secret" }]);
+  expect(result.diagnostics).toMatchObject([
+    { severity: "warn", code: "import.secret" },
+    { severity: "warn", code: "import.secret" },
+    { severity: "warn", code: "import.secret" },
+  ]);
   expect(result.validation).toBeDefined();
   expect(
     result.validation?.diagnostics.filter((diagnostic) => diagnostic.severity === "error"),
@@ -510,6 +745,7 @@ it("imports resolved selections, validates the repository and preserves every ha
   );
   const mcp = await readFile(join(fixture.repo, "mcp.json"), "utf8");
   expect(JSON.parse(mcp)).toEqual({
+    settings: { timeoutMs: 30000 },
     mcpServers: {
       docs: { url: "https://docs.example.com/mcp" },
       search: { url: "https://search.example.com/mcp" },
@@ -520,9 +756,59 @@ it("imports resolved selections, validates the repository and preserves every ha
       },
     },
   });
+  const templates = {
+    "codex/config.toml": { model: "gpt-5", approval_policy: "on-request" },
+    "omo/models.json": { providers: { local: { baseUrl: "http://localhost:11434" } } },
+    "omo/omo.jsonc": { telemetry: false },
+    "opencode/opencode.jsonc": {
+      $schema: "https://opencode.ai/config.json",
+      model: "anthropic/claude-sonnet",
+      provider: { anthropic: { options: {} } },
+    },
+    "opencode/tui.json": { theme: "tokyonight" },
+    "pi/settings.json": { theme: "dark", enableSkillCommands: true },
+  };
+  for (const [name, value] of Object.entries(templates)) {
+    const slash = name.indexOf("/");
+    const path = join(
+      fixture.repo,
+      "harnesses",
+      name.slice(0, slash),
+      "templates",
+      name.slice(slash + 1),
+    );
+    const content = await readFile(path, "utf8");
+    const parsed: unknown = name.endsWith(".toml") ? parseToml(content) : parseJsonc(content);
+    expect(parsed).toEqual(value);
+    expect(content).not.toContain(PROVIDER_KEY);
+  }
   expect(mcp + JSON.stringify(result.diagnostics)).not.toContain(SECRET_TOKEN);
   expect(await homeSnapshot(fixture.home)).toEqual(before);
   expect(await homeSnapshot(fixture.cache)).toEqual(cache);
+});
+
+it("stages differing settings beside the repository without overwriting a template", async () => {
+  // Given: imported Pi settings conflict with an authored repository template.
+  const inventory = await inventoryRepo(fixture.repo, { env: fixture.env });
+  const selected = selectItems(inventory.entries, { names: ["pi/settings.json"] });
+  const template = join(fixture.repo, "harnesses/pi/templates/settings.json");
+  const authored = '{"theme":"light"}\n';
+  await fixture.put(template, authored);
+  const before = await homeSnapshot(fixture.home);
+  // When: the engine passes the repository root to the settings writer.
+  const result = await importRepo(fixture.repo, { env: fixture.env, items: selected.items });
+  // Then: the conflict copy is inside imported/, and both the template and homes are untouched.
+  const target = join(fixture.repo, "imported/pi/settings.json");
+  expect(result.writes).toMatchObject([{ target, status: "written" }]);
+  expect(JSON.parse(await readFile(target, "utf8"))).toEqual({
+    theme: "dark",
+    enableSkillCommands: true,
+  });
+  expect(await readFile(template, "utf8")).toBe(authored);
+  expect(result.diagnostics).toEqual([]);
+  expect(result.validation).toBeDefined();
+  expect(result.validation?.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
+  expect(await homeSnapshot(fixture.home)).toEqual(before);
 });
 
 it("uses configured source paths for inventory comparisons and imports", async () => {
@@ -537,13 +823,20 @@ sources:
   agents: custom/agents
   instructions: custom/instructions.md
   mcp: custom/mcp.json
+  harnesses: custom/harnesses
 profiles:
   default: {}
   alternate: {}
 `,
   );
+  await fixture.put(
+    join(fixture.repo, "harnesses/pi/templates/settings.json"),
+    '{"theme":"dark","enableSkillCommands":true}\n',
+  );
   const inventory = await inventoryRepo(fixture.repo, { env: fixture.env });
-  const selected = selectItems(inventory.entries, { names: ["existing", "docs", "planner"] });
+  const selected = selectItems(inventory.entries, {
+    names: ["existing", "docs", "planner", "pi/settings.json", "mcp-settings"],
+  });
   // When: selected items are imported into those configured sources.
   const result = await importRepo(fixture.repo, {
     env: fixture.env,
@@ -552,10 +845,15 @@ profiles:
   });
   // Then: the old default-source copy does not suppress import and all targets use custom paths.
   expect(inventory.entries.find((entry) => entry.name === "existing")?.inRepo).toBe("absent");
+  expect(inventory.entries.find((entry) => entry.name === "pi/settings.json")?.inRepo).toBe(
+    "absent",
+  );
   expect(result.writes.map((write) => write.target)).toEqual([
     join(fixture.repo, "custom/skills/existing"),
     join(fixture.repo, "custom/agents/planner.md"),
     join(fixture.repo, "custom/mcp.json"),
+    join(fixture.repo, "custom/mcp.json"),
+    join(fixture.repo, "custom/harnesses/pi/templates/settings.json"),
   ]);
   expect(result.writes.every((write) => write.status === "written")).toBe(true);
   expect(result.validation?.profile).toBe("alternate");

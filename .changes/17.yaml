@@ -1,6 +1,7 @@
 type: feat
 description: >-
-  New `skillerie import` lists the skills, agents, instructions and MCP servers
-  already in your harness homes and copies the ones you pick into the config
-  repository, without secrets and without touching the harness homes.
-  `init --import` runs it after scaffolding.
+  New `skillerie import` lists the skills, agents, instructions, MCP servers
+  and harness settings already in your harness homes and copies the ones you
+  pick into the config repository, without secrets and without touching the
+  harness homes. Settings become templates; an existing different template is
+  never overwritten. `init --import` runs it after scaffolding.

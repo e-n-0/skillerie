@@ -6,7 +6,7 @@ import type { Environment } from "../../src/core/types.js";
 import { parseFrontmatter } from "../../src/model/frontmatter.js";
 import { hashJson, hashText } from "../../src/import/shared.js";
 import { scanPi } from "../../src/import/pi.js";
-import type { FoundAgent, FoundMcp, ScanContext } from "../../src/import/types.js";
+import type { FoundAgent, FoundMcp, FoundSettings, ScanContext } from "../../src/import/types.js";
 
 let root: string;
 let home: string;
@@ -33,7 +33,7 @@ function context(managed: ScanContext["managed"] = () => false): ScanContext {
   return { env, managed };
 }
 
-it("imports Pi agents, instructions, and MCP servers", async () => {
+it("imports Pi agents, instructions, MCP servers, and settings", async () => {
   // Given: a Pi home with authored files, an agent extension field, and MCP settings.
   const agentPath = await put(
     "agents/scout.md",
@@ -45,6 +45,11 @@ it("imports Pi agents, instructions, and MCP servers", async () => {
   );
   const instructions = "Use the repository's verification commands.\n";
   const instructionsPath = await put("AGENTS.md", instructions);
+  const settingsPath = await put(
+    "settings.json",
+    '{\n  "theme": "dark",\n  "enableSkillCommands": true,\n  "mcpServers": {}\n}\n',
+  );
+  const mcpSettingsSecret = "sk-live-0123456789abcdef"; // gitleaks:allow (fake value for secret tests)
   const mcpPath = await put(
     "mcp.json",
     `{
@@ -58,7 +63,7 @@ it("imports Pi agents, instructions, and MCP servers", async () => {
       }
     }
   },
-  "settings": { "theme": "dark" }
+  "settings": { "timeoutMs": 30000, "apiKey": "${mcpSettingsSecret}" }
 }
 `,
   );
@@ -72,6 +77,8 @@ it("imports Pi agents, instructions, and MCP servers", async () => {
     "agent:scout",
     "instructions:instructions",
     "mcp:docs",
+    "settings:mcp-settings",
+    "settings:pi/settings.json",
   ]);
   const agent = result.items.find((item): item is FoundAgent => item.kind === "agent");
   const expectedAgent = parseFrontmatter(
@@ -110,15 +117,45 @@ it("imports Pi agents, instructions, and MCP servers", async () => {
     secrets: ["headers.Authorization"],
     hash: hashJson(expectedServer),
   });
+
+  const settings = result.items.filter((item): item is FoundSettings => item.kind === "settings");
+  const expectedMcpSettings = { timeoutMs: 30000 };
+  const expectedPiSettings = { theme: "dark", enableSkillCommands: true };
+  expect(settings).toEqual([
+    {
+      kind: "settings",
+      name: "mcp-settings",
+      source: "pi",
+      path: mcpPath,
+      format: "json",
+      value: expectedMcpSettings,
+      excluded: [],
+      secrets: ["apiKey"],
+      hash: hashJson(expectedMcpSettings),
+    },
+    {
+      kind: "settings",
+      name: "pi/settings.json",
+      source: "pi",
+      path: settingsPath,
+      format: "json",
+      value: expectedPiSettings,
+      excluded: ["mcpServers"],
+      secrets: [],
+      hash: hashJson(expectedPiSettings),
+    },
+  ]);
+  expect(JSON.stringify(settings)).not.toContain(mcpSettingsSecret);
 });
 
 it("skips managed agent, instructions, and MCP paths", async () => {
-  // Given: each supported Pi path exists and the context marks all three as managed.
+  // Given: each supported Pi path exists and the context marks them all as managed.
   const agentPath = await put(
     "agents/scout.md",
     "---\nname: scout\ndescription: Use when scouting.\n---\n",
   );
   const instructionsPath = await put("AGENTS.md", "managed instructions\n");
+  const settingsPath = await put("settings.json", '{"theme":"dark"}');
   const mcpPath = await put(
     "mcp.json",
     '{"mcpServers":{"docs":{"url":"https://docs.example.com"}}}',
@@ -127,7 +164,7 @@ it("skips managed agent, instructions, and MCP paths", async () => {
   // When: those paths are reported as managed.
   const result = await scanPi(
     home,
-    context((path) => [agentPath, instructionsPath, mcpPath].includes(path)),
+    context((path) => [agentPath, instructionsPath, settingsPath, mcpPath].includes(path)),
   );
 
   // Then: no managed item is imported.
@@ -150,6 +187,47 @@ it("returns a diagnostic for invalid MCP JSONC", async () => {
       code: "pi.import.mcp",
       file: path,
       line: 2,
+    }),
+  );
+});
+
+it("scrubs and reports secret values in Pi settings", async () => {
+  // Given: a Pi settings file with one public value and one secret.
+  const secret = "sk-live-0123456789abcdef"; // gitleaks:allow (fake value for secret tests)
+  const path = await put(
+    "settings.json",
+    JSON.stringify({ theme: "light", provider: { apiKey: secret } }),
+  );
+
+  // When: Pi's home is scanned.
+  const result = await scanPi(home, context());
+
+  // Then: the public setting remains and only the secret path is reported.
+  const settings = result.items.find(
+    (item): item is FoundSettings => item.kind === "settings" && item.name === "pi/settings.json",
+  );
+  expect(settings).toMatchObject({
+    path,
+    value: { theme: "light", provider: {} },
+    secrets: ["provider.apiKey"],
+  });
+  expect(JSON.stringify(settings ?? {})).not.toContain(secret);
+});
+
+it("warns when Pi settings JSONC is invalid", async () => {
+  // Given: a Pi settings file with invalid JSONC.
+  const path = await put("settings.json", '{\n  "theme": }\n');
+
+  // When: Pi's home is scanned.
+  const result = await scanPi(home, context());
+
+  // Then: a settings warning identifies the file and no settings item is imported.
+  expect(result.items).toEqual([]);
+  expect(result.diagnostics).toContainEqual(
+    expect.objectContaining({
+      severity: "warn",
+      code: "import.settings",
+      file: path,
     }),
   );
 });

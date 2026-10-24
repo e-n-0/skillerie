@@ -1,4 +1,4 @@
-import type { McpServer } from "../core/types.js";
+import type { JsonObject, JsonValue, McpServer } from "../core/types.js";
 
 const SECRET_KEY =
   /token|secret|passw(or)?d|api[-_]?key|apikey|auth|credential|private[-_]?key|cookie/i;
@@ -61,4 +61,48 @@ export function scrubServer(server: McpServer): {
     if (args.length !== server.args.length) result["args"] = args;
   }
   return { server: result as McpServer, secrets };
+}
+
+/** Settings keys are words like apiKey or client_secret; plain words such as "keyring" are not secrets. */
+const SETTINGS_SECRET_KEY =
+  /(^|_)(api_?key|token|access_token|refresh_token|secret|client_secret|password|passwd|credential|private_key|bearer)(_|$)/;
+
+function secretSetting(key: string, value: string): boolean {
+  if (!value || REFERENCE.test(value)) return false;
+  if (SECRET_VALUE.test(value.trim())) return true;
+  const words = key
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+    .replace(/[^A-Za-z0-9]+/g, "_")
+    .toLowerCase();
+  return SETTINGS_SECRET_KEY.test(words) && value.length >= 12 && !/\s/.test(value);
+}
+
+/** Remove secret-looking string values anywhere in a settings object; only their paths are reported. */
+export function scrubSettings(value: JsonObject): {
+  readonly value: JsonObject;
+  readonly secrets: readonly string[];
+} {
+  const secrets: string[] = [];
+  const walk = (node: JsonValue, path: string, key: string): JsonValue | undefined => {
+    if (typeof node === "string") {
+      if (!secretSetting(key, node)) return node;
+      secrets.push(path);
+      return undefined;
+    }
+    if (Array.isArray(node))
+      return node.flatMap((item, index) => {
+        const kept = walk(item, `${path}.${index}`, key);
+        return kept === undefined ? [] : [kept];
+      });
+    if (node !== null && typeof node === "object") {
+      const result: Record<string, JsonValue> = {};
+      for (const [name, child] of Object.entries(node)) {
+        const kept = walk(child, path ? `${path}.${name}` : name, name);
+        if (kept !== undefined) result[name] = kept;
+      }
+      return result;
+    }
+    return node;
+  };
+  return { value: walk(value, "", "") as JsonObject, secrets };
 }

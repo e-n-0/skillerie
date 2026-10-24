@@ -1,12 +1,13 @@
 import { chmod, lstat, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { parse, type ParseError } from "jsonc-parser";
+import { parse as parseToml, stringify as stringifyToml } from "smol-toml";
 import type { ResolvedSourcePaths } from "../config/sources.js";
 import type { Diagnostic, JsonValue } from "../core/types.js";
 import { scaffoldFiles } from "../init/templates.js";
 import { isJsonObject } from "../model/json.js";
 import { hashFiles, hashJson, hashText } from "./shared.js";
-import type { FoundItem, FoundMcp, ImportWrite } from "./types.js";
+import type { FoundItem, FoundMcp, FoundSettings, ImportWrite } from "./types.js";
 
 const conflict = "already in the repository with different content";
 
@@ -75,7 +76,43 @@ function result(
   };
 }
 
-async function writeMcp(target: string, items: readonly FoundMcp[]): Promise<ImportWrite[]> {
+function settingsNotes(item: FoundSettings): string[] {
+  return [
+    ...(item.excluded.length ? [`left out: ${item.excluded.join(", ")}`] : []),
+    ...(item.secrets.length ? [`removed secrets: ${item.secrets.join(", ")}`] : []),
+  ];
+}
+
+async function settingsTemplateState(
+  target: string,
+  item: FoundSettings,
+  diagnostics: Diagnostic[],
+): Promise<"missing" | "same" | "different"> {
+  try {
+    const text = await textAt(target);
+    if (text === undefined) return "missing";
+    const errors: ParseError[] = [];
+    const value: unknown =
+      item.format === "toml" ? parseToml(text) : parse(text, errors, { allowTrailingComma: true });
+    if (errors.length || (item.format === "json" && !isJsonObject(value)))
+      throw new TypeError("Expected a settings object.");
+    return hashJson(value) === hashJson(item.value) ? "same" : "different";
+  } catch (error) {
+    if (!(error instanceof Error)) throw error;
+    diagnostics.push({
+      severity: "warn",
+      code: "import.settings",
+      message: "Could not read or parse the existing settings template.",
+      file: target,
+    });
+    return "different";
+  }
+}
+
+async function writeMcp(
+  target: string,
+  items: readonly (FoundMcp | FoundSettings)[],
+): Promise<ImportWrite[]> {
   const text = await textAt(target);
   const errors: ParseError[] = [];
   const data: unknown =
@@ -86,27 +123,51 @@ async function writeMcp(target: string, items: readonly FoundMcp[]): Promise<Imp
     (data["mcpServers"] !== undefined && !isJsonObject(data["mcpServers"]))
   )
     throw new TypeError("Expected an MCP JSON object with a mcpServers mapping.");
+  const document: Record<string, JsonValue> = { ...data };
   const servers: Record<string, JsonValue> = { ...(data["mcpServers"] ?? {}) };
   const writes = items.map((item) => {
-    const current = Object.hasOwn(servers, item.name) ? servers[item.name] : undefined;
-    const status =
-      current === undefined
-        ? "written"
-        : hashJson(current) === hashJson(item.server)
-          ? "unchanged"
-          : "conflict";
-    if (status === "written")
-      Object.defineProperty(servers, item.name, {
-        value: item.server,
-        enumerable: true,
-        configurable: true,
-        writable: true,
-      });
-    const notes = [
-      ...(status === "conflict" ? [conflict] : []),
-      ...(item.secrets.length ? [`removed secrets: ${item.secrets.join(", ")}`] : []),
-    ];
-    return result(item, target, status, notes.join("; "));
+    switch (item.kind) {
+      case "settings": {
+        const current = document["settings"];
+        const status =
+          current === undefined || (isJsonObject(current) && !Object.keys(current).length)
+            ? "written"
+            : hashJson(current) === hashJson(item.value)
+              ? "unchanged"
+              : "conflict";
+        if (status === "written") document["settings"] = item.value;
+        const notes = [
+          ...(status === "conflict" ? ["mcp.json already has different settings"] : []),
+          ...settingsNotes(item),
+        ];
+        return result(item, target, status, notes.join("; "));
+      }
+      case "mcp": {
+        const current = Object.hasOwn(servers, item.name) ? servers[item.name] : undefined;
+        const status =
+          current === undefined
+            ? "written"
+            : hashJson(current) === hashJson(item.server)
+              ? "unchanged"
+              : "conflict";
+        if (status === "written")
+          Object.defineProperty(servers, item.name, {
+            value: item.server,
+            enumerable: true,
+            configurable: true,
+            writable: true,
+          });
+        const notes = [
+          ...(status === "conflict" ? [conflict] : []),
+          ...(item.secrets.length ? [`removed secrets: ${item.secrets.join(", ")}`] : []),
+        ];
+        return result(item, target, status, notes.join("; "));
+      }
+      default: {
+        const exhaustive: never = item;
+        return exhaustive;
+      }
+    }
   });
   if (writes.some((write) => write.status === "written")) {
     await directory(dirname(target));
@@ -114,7 +175,7 @@ async function writeMcp(target: string, items: readonly FoundMcp[]): Promise<Imp
       target,
       `${JSON.stringify(
         {
-          ...data,
+          ...document,
           mcpServers: Object.fromEntries(
             Object.entries(servers).sort(([a], [b]) => a.localeCompare(b)),
           ),
@@ -129,6 +190,7 @@ async function writeMcp(target: string, items: readonly FoundMcp[]): Promise<Imp
 
 /** Copy selected inventory into the repository without changing harness homes. */
 export async function writeImport(input: {
+  readonly repo: string;
   readonly sources: ResolvedSourcePaths;
   readonly items: readonly FoundItem[];
 }): Promise<{
@@ -137,7 +199,7 @@ export async function writeImport(input: {
 }> {
   const writes: ImportWrite[] = [];
   const diagnostics: Diagnostic[] = [];
-  const mcp: FoundMcp[] = [];
+  const mcp: (FoundMcp | FoundSettings)[] = [];
   for (const item of input.items) {
     let target = item.path;
     try {
@@ -217,6 +279,44 @@ export async function writeImport(input: {
           writes.push(
             result(item, target, "written", imported ? "merge it into instructions.md" : undefined),
           );
+          break;
+        }
+        case "settings": {
+          if (item.secrets.length)
+            diagnostics.push({
+              severity: "warn",
+              code: "import.secret",
+              message: `Settings ${item.name}: removed secrets: ${item.secrets.join(", ")}`,
+              file: item.path,
+            });
+          if (item.name === "mcp-settings") {
+            mcp.push(item);
+            break;
+          }
+          const slash = item.name.indexOf("/");
+          const harness = item.name.slice(0, slash);
+          const file = item.name.slice(slash + 1);
+          target = join(input.sources.harnesses, harness, "templates", file);
+          const state = await settingsTemplateState(target, item, diagnostics);
+          const notes = settingsNotes(item);
+          if (state === "same") {
+            writes.push(result(item, target, "unchanged", notes.join("; ")));
+            break;
+          }
+          if (state === "different") {
+            target = join(input.repo, "imported", harness, file);
+            notes.unshift(
+              `differs from harnesses/${harness}/templates/${file}; merge imported/${harness}/${file} into it`,
+            );
+          }
+          const content =
+            item.format === "toml"
+              ? stringifyToml(item.value)
+              : `${JSON.stringify(item.value, null, 2)}\n`;
+          await directory(dirname(target));
+          if (state === "different") await textAt(target);
+          await writeFile(target, content, { flag: state === "missing" ? "wx" : "w" });
+          writes.push(result(item, target, "written", notes.join("; ")));
           break;
         }
         case "mcp":

@@ -3,8 +3,9 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { ScanContext } from "../../src/import/types.js";
-import { hashText } from "../../src/import/shared.js";
+import { hashJson, hashText } from "../../src/import/shared.js";
 import { scanOpencode } from "../../src/import/opencode.js";
+import { PROVIDER_KEY } from "./fixture.js";
 
 let home: string | undefined;
 
@@ -33,8 +34,8 @@ function context(homeDir: string, managed: (path: string) => boolean = () => fal
 }
 
 describe("scanOpencode", () => {
-  it("imports agents, instructions, and MCP servers", async () => {
-    // Given OpenCode agent, instructions, and JSONC MCP configuration.
+  it("imports agents, instructions, MCP servers, and settings", async () => {
+    // Given an OpenCode agent, instructions, and a JSONC file yielding MCP and settings items.
     const homeDir = await createHome();
     await put(
       homeDir,
@@ -78,7 +79,7 @@ description: Use when planning.
 Plan before coding.
 `;
     expect(result.diagnostics).toEqual([]);
-    expect(result.items).toHaveLength(4);
+    expect(result.items).toHaveLength(5);
     expect(result.items.find((item) => item.kind === "agent")).toMatchObject({
       kind: "agent",
       name: "planner",
@@ -118,6 +119,96 @@ Plan before coding.
       },
       secrets: [],
     });
+    expect(result.items.find((item) => item.kind === "settings")).toMatchObject({
+      kind: "settings",
+      name: "opencode/opencode.jsonc",
+      source: "opencode",
+      path: config,
+      format: "json",
+      value: {},
+      excluded: ["mcp"],
+      secrets: [],
+      hash: hashJson({}),
+    });
+  });
+
+  it("imports JSONC and TUI settings after exclusions and secret scrubbing", async () => {
+    // Given OpenCode settings with MCP config, a skillerie rule, and a provider key.
+    const homeDir = await createHome();
+    const config = await put(
+      homeDir,
+      "opencode.jsonc",
+      `{
+  // Keep ordinary settings.
+  "$schema": "https://opencode.ai/config.json",
+  "model": "anthropic/claude-sonnet",
+  "instructions": ["AGENTS.md", "rules/*.md"],
+  "mcp": { "docs": { "type": "remote", "url": "https://docs.example.com/mcp" } },
+  "provider": { "anthropic": { "options": { "apiKey": "${PROVIDER_KEY}" } } }
+}`,
+    );
+    const tui = await put(homeDir, "tui.json", '{"theme":"tokyonight","diffStyle":"unified"}\n');
+
+    // When the home is scanned.
+    const result = await scanOpencode(homeDir, context(homeDir));
+
+    // Then both settings files are imported without MCP or secret values.
+    const settings = result.items.find(
+      (item) => item.kind === "settings" && item.name === "opencode/opencode.jsonc",
+    );
+    expect(result.diagnostics).toEqual([]);
+    expect(settings).toMatchObject({
+      kind: "settings",
+      name: "opencode/opencode.jsonc",
+      path: config,
+      format: "json",
+      value: {
+        $schema: "https://opencode.ai/config.json",
+        model: "anthropic/claude-sonnet",
+        instructions: ["AGENTS.md"],
+        provider: { anthropic: { options: {} } },
+      },
+      excluded: ["mcp"],
+      secrets: ["provider.anthropic.options.apiKey"],
+    });
+    expect(JSON.stringify(settings)).not.toContain(PROVIDER_KEY);
+    expect(settings?.kind === "settings" ? settings.hash : undefined).toBe(
+      hashJson({
+        $schema: "https://opencode.ai/config.json",
+        model: "anthropic/claude-sonnet",
+        instructions: ["AGENTS.md"],
+        provider: { anthropic: { options: {} } },
+      }),
+    );
+    expect(
+      result.items.find((item) => item.kind === "settings" && item.name === "opencode/tui.json"),
+    ).toMatchObject({
+      kind: "settings",
+      name: "opencode/tui.json",
+      path: tui,
+      format: "json",
+      value: { theme: "tokyonight", diffStyle: "unified" },
+      excluded: [],
+      secrets: [],
+    });
+  });
+
+  it("drops the instructions key when only the skillerie rule remains", async () => {
+    // Given OpenCode JSON settings containing only the rule added by skillerie.
+    const homeDir = await createHome();
+    await put(homeDir, "opencode.json", '{"instructions":["rules/*.md"]}\n');
+
+    // When the home is scanned.
+    const result = await scanOpencode(homeDir, context(homeDir));
+
+    // Then the rule and now-empty key are excluded.
+    expect(result.items.find((item) => item.kind === "settings")).toMatchObject({
+      kind: "settings",
+      name: "opencode/opencode.json",
+      value: {},
+      excluded: ["instructions"],
+      secrets: [],
+    });
   });
 
   it("skips managed agent files", async () => {
@@ -140,6 +231,22 @@ Plan before coding.
     expect(result.diagnostics).toEqual([]);
   });
 
+  it("skips managed settings files", async () => {
+    // Given an OpenCode settings file already managed by skillerie.
+    const homeDir = await createHome();
+    const config = await put(homeDir, "opencode.jsonc", '{"model":"managed"}\n');
+
+    // When the scan context marks that path as managed.
+    const result = await scanOpencode(
+      homeDir,
+      context(homeDir, (path) => path === config),
+    );
+
+    // Then no settings or MCP item is imported from that file.
+    expect(result.items).toEqual([]);
+    expect(result.diagnostics).toEqual([]);
+  });
+
   it("reports invalid MCP JSONC as a diagnostic", async () => {
     // Given an invalid OpenCode JSONC file.
     const homeDir = await createHome();
@@ -155,6 +262,11 @@ Plan before coding.
         expect.objectContaining({
           severity: "warn",
           code: "import.mcp",
+          file: config,
+        }),
+        expect.objectContaining({
+          severity: "warn",
+          code: "import.settings",
           file: config,
         }),
       ]),

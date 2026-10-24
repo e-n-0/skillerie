@@ -1,10 +1,10 @@
 import { lstat, readFile, readdir } from "node:fs/promises";
 import { extname, join } from "node:path";
 import { parse, printParseErrorCode, type ParseError } from "jsonc-parser";
-import type { Diagnostic, McpServer } from "../core/types.js";
+import type { Diagnostic, JsonValue, McpServer } from "../core/types.js";
 import { parseFrontmatter } from "../model/frontmatter.js";
 import { isJsonObject } from "../model/json.js";
-import { scrubServer } from "./secrets.js";
+import { scrubServer, scrubSettings } from "./secrets.js";
 import { agentMarkdown, hashJson, hashText } from "./shared.js";
 import type { FoundItem, ScanContext, ScanResult } from "./types.js";
 
@@ -151,6 +151,32 @@ async function readMcpConfig(
   return undefined;
 }
 
+async function readSettingsConfig(
+  home: string,
+  ctx: ScanContext,
+  diagnostics: Diagnostic[],
+): Promise<{ readonly file: string; readonly name: string; readonly content: string } | undefined> {
+  for (const name of ["opencode.jsonc", "opencode.json"]) {
+    const file = join(home, name);
+    try {
+      await lstat(file);
+    } catch (error) {
+      if (errorCode(error) === "ENOENT") continue;
+      diagnostics.push(readWarning("import.settings", file, error));
+      return undefined;
+    }
+    if (ctx.managed(file)) continue;
+
+    try {
+      return { file, name: `opencode/${name}`, content: await readFile(file, "utf8") };
+    } catch (error) {
+      diagnostics.push(readWarning("import.settings", file, error));
+      return undefined;
+    }
+  }
+  return undefined;
+}
+
 function stringMap(value: unknown): Readonly<Record<string, string>> | undefined | null {
   if (value === undefined) return undefined;
   if (!isJsonObject(value)) return null;
@@ -273,11 +299,92 @@ async function scanMcp(
   }
 }
 
+async function scanSettings(
+  home: string,
+  ctx: ScanContext,
+  items: FoundItem[],
+  diagnostics: Diagnostic[],
+): Promise<void> {
+  const sources: { readonly file: string; readonly name: string; readonly content: string }[] = [];
+  const config = await readSettingsConfig(home, ctx, diagnostics);
+  if (config) sources.push(config);
+
+  const tuiFile = join(home, "tui.json");
+  if (!ctx.managed(tuiFile)) {
+    try {
+      sources.push({
+        file: tuiFile,
+        name: "opencode/tui.json",
+        content: await readFile(tuiFile, "utf8"),
+      });
+    } catch (error) {
+      if (errorCode(error) !== "ENOENT")
+        diagnostics.push(readWarning("import.settings", tuiFile, error));
+    }
+  }
+
+  for (const source of sources) {
+    const errors: ParseError[] = [];
+    const parsed: unknown = parse(source.content, errors, { allowTrailingComma: true });
+    if (errors.length) {
+      diagnostics.push(
+        ...errors.map((error) =>
+          warning(
+            "import.settings",
+            printParseErrorCode(error.error),
+            source.file,
+            source.content.slice(0, error.offset).split("\n").length,
+          ),
+        ),
+      );
+      continue;
+    }
+    if (!isJsonObject(parsed)) {
+      diagnostics.push(
+        warning("import.settings", "OpenCode settings must be an object.", source.file),
+      );
+      continue;
+    }
+
+    const settings: Record<string, JsonValue> = { ...parsed };
+    const excluded: string[] = [];
+    if (source.name !== "opencode/tui.json" && Object.hasOwn(settings, "mcp")) {
+      delete settings["mcp"];
+      excluded.push("mcp");
+    }
+    if (source.name !== "opencode/tui.json" && Array.isArray(settings["instructions"])) {
+      const instructions = settings["instructions"];
+      const kept = instructions.filter((entry) => entry !== "rules/*.md");
+      if (kept.length !== instructions.length) {
+        if (kept.length) settings["instructions"] = kept;
+        else {
+          delete settings["instructions"];
+          excluded.push("instructions");
+        }
+      }
+    }
+
+    const scrubbed = scrubSettings(settings);
+    items.push({
+      kind: "settings",
+      name: source.name,
+      source: "opencode",
+      path: source.file,
+      format: "json",
+      value: scrubbed.value,
+      excluded,
+      secrets: scrubbed.secrets,
+      hash: hashJson(scrubbed.value),
+    });
+  }
+}
+
 export async function scanOpencode(home: string, ctx: ScanContext): Promise<ScanResult> {
   const items: FoundItem[] = [];
   const diagnostics: Diagnostic[] = [];
   await scanAgents(home, ctx, items, diagnostics);
   await scanInstructions(home, ctx, items, diagnostics);
   await scanMcp(home, ctx, items, diagnostics);
+  await scanSettings(home, ctx, items, diagnostics);
   return { items, diagnostics };
 }
