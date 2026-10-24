@@ -11,12 +11,36 @@ const SECRET_VALUE =
   /^(bearer|basic|token|digest)\s+\S+|^(authorization|proxy-authorization|cookie|x-api-key|api-key|x-auth-token|private-token)\s*:\s*\S+|^(sk|pk|rk)-[\w-]{12,}|^gh[pousr]_\w{20,}|^github_pat_\w{20,}|^xox[abprs]-[\w-]{10,}|^glpat-[\w-]{12,}|^AKIA[A-Z0-9]{16}$/i;
 /** Only a value that is entirely a reference is safe: "{env:KEY}" is kept, "sk-1{env:KEY}" is not. */
 const REFERENCE = /^(\{(env|file):[^{}]+\}|\$\{[\w.]+\}|\$[A-Za-z_]\w*|\$\([^()]*\))$/;
-/** Query parameter words that carry credentials, matched on whole words so "accessToken" counts and "keyword" does not. */
-const SECRET_QUERY_WORD =
-  /(^|_)(token|secret|password|passwd|pwd|pass|key|apikey|auth|authorization|sig|signature|session|code|credential|credentials)(_|$)/;
+/**
+ * Query parameters kept on imported URLs. Every other parameter is dropped and reported: a token can hide
+ * under any name, so a short list of known-safe names is the only rule that cannot miss one.
+ */
+const SAFE_QUERY: ReadonlySet<string> = new Set([
+  "region",
+  "location",
+  "version",
+  "api-version",
+  "apiversion",
+  "format",
+  "lang",
+  "locale",
+  "mode",
+  "transport",
+  "project",
+  "workspace",
+  "team",
+  "org",
+  "env",
+  "environment",
+  "readonly",
+  "read_only",
+  "tools",
+  "toolsets",
+  "features",
+]);
 const HEADER_FLAGS = new Set(["-H", "--header"]);
 
-/** A URL without its user, password and token-like query parameters; undefined when nothing was removed. */
+/** A URL without its user, password and query parameters outside SAFE_QUERY; undefined when nothing was removed. */
 function cleanUrl(value: string): string | undefined {
   if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(value)) return undefined;
   let url: URL;
@@ -33,7 +57,7 @@ function cleanUrl(value: string): string | undefined {
     changed = true;
   }
   for (const name of [...url.searchParams.keys()])
-    if (SECRET_QUERY_WORD.test(words(name)) || SECRET_QUERY_SUFFIX.test(compact(name))) {
+    if (!SAFE_QUERY.has(name.toLowerCase())) {
       url.searchParams.delete(name);
       changed = true;
     }
@@ -51,14 +75,6 @@ function judge(value: string, secretKey: boolean): Verdict & { readonly changed:
   return cleaned === undefined
     ? { drop: false, value, changed: false }
     : { drop: false, value: cleaned, changed: true };
-}
-
-/** Names without word boundaries (APITOKEN, APIToken2, APIKEYV2) are caught by their credential ending. */
-const SECRET_QUERY_SUFFIX =
-  /(token|secret|password|passwd|apikey|privatekey|signature|credentials?|sessionid)(v?\d+)?$|(^|[^o])auth(orization)?v?\d+$/;
-
-function compact(name: string): string {
-  return name.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
 function words(key: string): string {

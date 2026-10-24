@@ -136,7 +136,7 @@ it("keeps fields that name an environment variable instead of holding a credenti
 it("catches word-based token parameters, inline header flags, and credentials nested under a sensitive key", () => {
   // Given: token-like query names, an inline header flag, and a deeply nested key list.
   const server = {
-    url: "https://mcp.example.com/sse?accessToken=a1&auth_token=b2&private_token=c3&keyword=docs",
+    url: "https://mcp.example.com/sse?accessToken=a1&auth_token=b2&private_token=c3&region=eu",
     args: ["--header=X-Goog-Api-Key: g7", "--header=X-Team: core"],
   };
   const settings = { apiKey: [[{ value: "nested-secret" }]], credentials: { store: "file" } };
@@ -144,7 +144,7 @@ it("catches word-based token parameters, inline header flags, and credentials ne
   const scrubbedServer = scrubServer(server);
   const scrubbedSettings = scrubSettings(settings);
   // Then: every credential is gone and ordinary query data and headers survive.
-  expect(scrubbedServer.server.url).toBe("https://mcp.example.com/sse?keyword=docs");
+  expect(scrubbedServer.server.url).toBe("https://mcp.example.com/sse?region=eu");
   expect(scrubbedServer.server.args).toEqual(["--header=X-Team: core"]);
   expect(scrubbedSettings.value).toEqual({ apiKey: [[{}]], credentials: {} });
   expect(JSON.stringify([scrubbedServer, scrubbedSettings])).not.toMatch(
@@ -169,55 +169,32 @@ it("keeps ordinary settings that only resemble credential words", () => {
 it("splits acronym-prefixed names such as APIToken into credential words", () => {
   // Given: query names and settings keys that start with an acronym.
   const server = {
-    url: "https://mcp.example.com/sse?APIToken=x1&APISecret=x2&JWTToken=x3&keyword=docs",
+    url: "https://mcp.example.com/sse?APIToken=x1&APISecret=x2&JWTToken=x3&region=eu",
   };
   const settings = { APIKey: "x4", HTTPProxy: "http://proxy.example.com:8080" };
   // When: both are scrubbed.
   const scrubbedServer = scrubServer(server);
   const scrubbedSettings = scrubSettings(settings);
   // Then: the credentials are removed and the proxy setting survives.
-  expect(scrubbedServer.server.url).toBe("https://mcp.example.com/sse?keyword=docs");
+  expect(scrubbedServer.server.url).toBe("https://mcp.example.com/sse?region=eu");
   expect(scrubbedSettings.value).toEqual({ HTTPProxy: "http://proxy.example.com:8080" });
 });
 
-it("catches all-caps and numbered credential parameters and keeps OAuth parameters", () => {
-  // Given: all-caps and numbered token parameters next to public OAuth parameters.
-  const server = {
-    url: "https://mcp.example.com/sse?APITOKEN=y1&JWTTOKEN=y2&APIToken2=y3&OAuthIssuer=https%3A%2F%2Fid.example.com&OAuthClientId=app&keyword=docs",
-  };
-  // When: the server is scrubbed.
-  const result = scrubServer(server);
-  // Then: only the credential parameters are removed.
-  const kept = new URL(String(result.server.url)).searchParams;
-  expect([...kept.keys()]).toEqual(["OAuthIssuer", "OAuthClientId", "keyword"]);
-  expect(result.secrets).toEqual(["url"]);
-});
-
-it("catches credential parameters with a version suffix", () => {
-  // Given: versioned credential parameter names.
-  const server = {
-    url: "https://mcp.example.com/sse?APIKEYV2=z1&APITOKENV2=z2&clientSecretv2=z3&apiversion=2&keyword=docs",
-  };
-  // When: the server is scrubbed.
-  const result = scrubServer(server);
-  // Then: the credentials are removed and ordinary parameters stay.
-  expect([...new URL(String(result.server.url)).searchParams.keys()]).toEqual([
-    "apiversion",
-    "keyword",
-  ]);
-});
-
-it("catches versioned auth parameters but not OAuth names", () => {
-  // Given: versioned auth parameters beside OAuth parameters.
-  const server = {
-    url: "https://mcp.example.com/sse?AUTHORIZATIONV2=w1&authv2=w2&oauthv2=x&OAuthIssuer=y&keyword=docs",
-  };
-  // When: the server is scrubbed.
-  const result = scrubServer(server);
-  // Then: only the auth credentials are removed.
-  expect([...new URL(String(result.server.url)).searchParams.keys()]).toEqual([
-    "oauthv2",
+it("keeps only allowlisted query parameters, whatever the other names look like", () => {
+  // Given: credential spellings that defeat name matching, a harmless unknown name, and allowlisted names.
+  const names = [
+    "APITOKEN",
+    "APIToken2",
+    "APIKEYV2",
+    "authv2",
+    "AUTHORIZATIONV2",
     "OAuthIssuer",
-    "keyword",
-  ]);
+    "q",
+  ];
+  const url = `https://mcp.example.com/sse?${names.map((name) => `${name}=v`).join("&")}&Region=eu&api-version=2`;
+  // When: the server is scrubbed.
+  const result = scrubServer({ url });
+  // Then: only the allowlisted parameters survive and the URL is reported.
+  expect(result.server.url).toBe("https://mcp.example.com/sse?Region=eu&api-version=2");
+  expect(result.secrets).toEqual(["url"]);
 });
