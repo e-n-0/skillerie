@@ -3,6 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { FoundSettings, ScanContext } from "../../src/import/types.js";
+import type { ResolvedContext } from "../../src/core/types.js";
+import { renderMcp } from "../../src/adapters/omo/configuration.js";
 import { scanOmo } from "../../src/import/omo.js";
 import { PROVIDER_KEY } from "./fixture.js";
 
@@ -107,7 +109,7 @@ describe("scanOmo", () => {
     );
     await writeFile(
       join(agentDir, "mcp.json"),
-      JSON.stringify({ mcpServers: {}, settings: { timeoutMs: 30000 } }),
+      JSON.stringify({ timeoutMs: 30000, mcpServers: {} }),
     );
 
     // When the OMO home is scanned
@@ -215,4 +217,35 @@ describe("scanOmo", () => {
       ]),
     );
   });
+});
+
+it("imports MCP settings exactly as the OMO adapter renders them", async () => {
+  // Given: an OMO mcp.json rendered by skillerie's own adapter from repository MCP settings.
+  const home = await mkdtemp(join(tmpdir(), "skillerie-omo-roundtrip-"));
+  try {
+    const agentDir = join(home, ".omo", "agent");
+    const settings = { timeoutMs: 30000, autoStart: true };
+    const ctx = {
+      model: {
+        templates: {},
+        mcp: {
+          file: join(home, "repo", "mcp.json"),
+          mcpServers: { docs: { url: "https://docs.example.com/mcp" } },
+          harnessOverrides: {},
+          settings,
+        },
+      },
+      snapshot: { config: { paths: { home } } },
+    } as unknown as ResolvedContext;
+    await mkdir(agentDir, { recursive: true });
+    await writeFile(join(agentDir, "mcp.json"), renderMcp(ctx, []));
+    // When: the rendered file is scanned.
+    const result = await scanOmo(join(home, ".omo"), agentDir, { env: {}, managed: () => false });
+    // Then: the settings come back unchanged.
+    expect(result.items.find((item) => item.name === "mcp-settings")).toMatchObject({
+      value: settings,
+    });
+  } finally {
+    await rm(home, { recursive: true, force: true });
+  }
 });

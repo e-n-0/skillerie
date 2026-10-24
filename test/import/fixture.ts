@@ -131,8 +131,8 @@ url = "https://managed.example.com/mcp"
     join(omo, "mcp.json"),
     JSON.stringify(
       {
+        timeoutMs: 30000,
         mcpServers: { search: { url: "https://search.example.com/mcp" } },
-        settings: { timeoutMs: 30000 },
       },
       null,
       2,

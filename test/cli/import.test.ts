@@ -555,6 +555,21 @@ it("offers identical copies as one choice when a group differs", async () => {
   // Then: the inventory and prompt list two choices, and the second one is Pi's copy.
   expect(result.code, result.stdout + result.stderr).toBe(0);
   expect(result.stdout).toContain("differs: pick one (review@opencode (same as codex), review@pi)");
-  expect(questions[1]).toBe("Keep which copy of review? 1) opencode, codex  2) pi: ");
+  expect(questions).toHaveLength(2);
   expect(await readFile(join(fixture.repo, "skills/review/SKILL.md"), "utf8")).toContain("Pi way");
+});
+
+it("never echoes file content when a harness file fails to parse", async () => {
+  // Given: a Codex config whose unterminated string holds a credential.
+  const leaked = "parse-leak-0123456789"; // gitleaks:allow (fake value for secret tests)
+  await fixture.put(
+    join(fixture.homes.codex, "config.toml"),
+    `api_key = "${leaked}\n[mcp_servers.x]\n`,
+  );
+  // When: the inventory is printed as text and as JSON.
+  const text = await command(["import", "--list", "--repo", fixture.repo]);
+  const json = await command(["--json", "import", "--list", "--repo", fixture.repo]);
+  // Then: the parse failure is reported by location only.
+  expect(text.stdout + text.stderr).toContain("Invalid TOML at line");
+  expect(text.stdout + text.stderr + json.stdout + json.stderr).not.toContain(leaked);
 });

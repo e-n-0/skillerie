@@ -4,7 +4,7 @@ import { parse as parseJsonc, printParseErrorCode, type ParseError } from "jsonc
 import type { Diagnostic, JsonValue, McpServer } from "../core/types.js";
 import { isJsonObject, pointerToken } from "../model/json.js";
 import { parseFrontmatter } from "../model/frontmatter.js";
-import { agentMarkdown, hashJson, hashText } from "./shared.js";
+import { agentMarkdown, failureReason, hashJson, hashText, safeDiagnostics } from "./shared.js";
 import { scrubServer, scrubSettings } from "./secrets.js";
 import type {
   FoundAgent,
@@ -33,7 +33,7 @@ async function readText(
     diagnostics.push({
       severity: "error",
       code: "pi.import.read",
-      message: error.message,
+      message: failureReason(error),
       file: path,
     });
     return undefined;
@@ -77,7 +77,7 @@ async function scanAgents(
     diagnostics.push({
       severity: "error",
       code: "pi.import.read",
-      message: error.message,
+      message: failureReason(error),
       file: directory,
     });
     return [];
@@ -100,7 +100,7 @@ async function scanAgents(
     if (content === undefined) continue;
 
     const parsed = parseFrontmatter(content, path);
-    diagnostics.push(...parsed.diagnostics);
+    diagnostics.push(...safeDiagnostics(parsed.diagnostics));
     if (parsed.diagnostics.length) continue;
     const frontmatter = parsed.frontmatter;
     const frontmatterName = frontmatter?.["name"];
@@ -185,17 +185,20 @@ async function scanSettings(
   home: string,
   ctx: ScanContext,
   diagnostics: Diagnostic[],
-): Promise<readonly FoundSettings[]> {
+): Promise<{
+  readonly settings: readonly FoundSettings[];
+  readonly servers?: JsonValue | undefined;
+}> {
   const path = join(home, "settings.json");
-  if (ctx.managed(path)) return [];
+  if (ctx.managed(path)) return { settings: [] };
 
   let content: string;
   try {
     content = await readFile(path, "utf8");
   } catch (error) {
-    if (hasErrorCode(error, "ENOENT")) return [];
-    settingsWarning(diagnostics, path, error instanceof Error ? error.message : String(error));
-    return [];
+    if (hasErrorCode(error, "ENOENT")) return { settings: [] };
+    settingsWarning(diagnostics, path, failureReason(error));
+    return { settings: [] };
   }
 
   const errors: ParseError[] = [];
@@ -210,13 +213,13 @@ async function scanSettings(
         line: content.slice(0, error.offset).split(/\r\n|\r|\n/).length,
       })),
     );
-    return [];
+    return { settings: [] };
   }
   if (!isJsonObject(parsed)) {
     settingsWarning(diagnostics, path, "Pi settings must be a JSON object.");
-    return [];
+    return { settings: [] };
   }
-  if (Object.keys(parsed).length === 0) return [];
+  if (Object.keys(parsed).length === 0) return { settings: [] };
 
   const excluded = Object.keys(parsed)
     .filter((key) => excludedSettingsKeys.has(key))
@@ -226,19 +229,22 @@ async function scanSettings(
     if (!excludedSettingsKeys.has(key)) value[key] = entry;
   }
   const scrubbed = scrubSettings(value);
-  return [
-    {
-      kind: "settings",
-      name: "pi/settings.json",
-      source: "pi",
-      path,
-      format: "json",
-      value: scrubbed.value,
-      excluded,
-      secrets: scrubbed.secrets,
-      hash: hashJson(scrubbed.value),
-    },
-  ];
+  return {
+    settings: [
+      {
+        kind: "settings",
+        name: "pi/settings.json",
+        source: "pi",
+        path,
+        format: "json",
+        value: scrubbed.value,
+        excluded,
+        secrets: scrubbed.secrets,
+        hash: hashJson(scrubbed.value),
+      },
+    ],
+    servers: parsed["mcpServers"],
+  };
 }
 
 async function scanMcp(
@@ -315,10 +321,30 @@ async function scanMcp(
     return [];
   }
 
+  return mcpServers(parsed["mcpServers"], path, diagnostics);
+}
+
+/** Convert an mcpServers object into importable servers, skipping names already taken. */
+function mcpServers(
+  record: Readonly<Record<string, JsonValue>>,
+  path: string,
+  diagnostics: Diagnostic[],
+  taken: ReadonlySet<string> = new Set(),
+): FoundMcp[] {
   const servers: FoundMcp[] = [];
-  for (const [name, value] of Object.entries(parsed["mcpServers"]).sort(([left], [right]) =>
+  for (const [name, value] of Object.entries(record).sort(([left], [right]) =>
     left < right ? -1 : left > right ? 1 : 0,
   )) {
+    if (taken.has(name)) {
+      diagnostics.push({
+        severity: "warn",
+        code: "import.mcp",
+        message: `Server ${name} is defined in both mcp.json and settings.json; importing the mcp.json one.`,
+        file: path,
+        jsonPath: `/mcpServers/${pointerToken(name)}`,
+      });
+      continue;
+    }
     if (!isMcpServer(value)) {
       diagnostics.push({
         severity: "error",
@@ -348,8 +374,21 @@ export async function scanPi(home: string, ctx: ScanContext): Promise<ScanResult
   const diagnostics: Diagnostic[] = [];
   const agents = await scanAgents(home, ctx, diagnostics);
   const instructions = await scanInstructions(home, ctx, diagnostics);
-  const settings = [...(await scanSettings(home, ctx, diagnostics))];
-  const servers = await scanMcp(home, ctx, diagnostics, settings);
+  const scanned = await scanSettings(home, ctx, diagnostics);
+  const settings = [...scanned.settings];
+  const fromMcp = await scanMcp(home, ctx, diagnostics, settings);
+  // Pi also accepts servers in settings.json; mcp.json wins when both define a name.
+  const servers = [
+    ...fromMcp,
+    ...(isJsonObject(scanned.servers)
+      ? mcpServers(
+          scanned.servers,
+          join(home, "settings.json"),
+          diagnostics,
+          new Set(fromMcp.map((server) => server.name)),
+        )
+      : []),
+  ];
   const items: FoundItem[] = [
     ...agents,
     ...(instructions ? [instructions] : []),

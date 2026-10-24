@@ -20,7 +20,7 @@ import { scanCodex } from "./codex.js";
 import { scanOmo } from "./omo.js";
 import { scanOpencode } from "./opencode.js";
 import { scanPi } from "./pi.js";
-import { hashFiles, hashJson, hashText } from "./shared.js";
+import { failureReason, hashFiles, hashJson, hashText } from "./shared.js";
 import { scanSkillDirectories } from "./skills.js";
 import type { FoundItem, ImportSource, ImportWrite, InventoryEntry, ScanContext } from "./types.js";
 import { writeImport } from "./write.js";
@@ -33,7 +33,7 @@ function missing(error: Error): boolean {
 }
 
 function readDiagnostic(file: string, error: Error, code = "import.read"): Diagnostic {
-  return { severity: "warn", code, message: error.message, file };
+  return { severity: "warn", code, message: failureReason(error), file };
 }
 
 function realPath(path: string, diagnostics: Diagnostic[]): string | undefined {

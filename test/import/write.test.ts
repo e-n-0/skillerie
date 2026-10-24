@@ -727,3 +727,34 @@ it("does not write imported settings through a symlink into a harness home", asy
   expect(await readFile(template, "utf8")).toBe('{"model":"local-model"}\n');
   expect((await lstat(target)).isSymbolicLink()).toBe(true);
 });
+
+it("refuses names that would write outside the repository", async () => {
+  // Given: an agent whose name tries to climb out of the agents directory.
+  const escape = { ...agent(), name: "../../home/.codex/escaped" };
+  // When: it is written.
+  const result = await writeImport({ repo: fixture.repo, sources, items: [escape] });
+  // Then: nothing is written anywhere and the item is reported as a conflict with a diagnostic.
+  expect(result.writes).toMatchObject([{ status: "conflict" }]);
+  expect(result.diagnostics.map((item) => item.code)).toContain("import.name");
+  await expect(lstat(join(fixture.root, "home/.codex/escaped.md"))).rejects.toMatchObject({
+    code: "ENOENT",
+  });
+  await expect(lstat(join(sources.agents, "../../home/.codex/escaped.md"))).rejects.toMatchObject({
+    code: "ENOENT",
+  });
+});
+
+it("keeps an existing imported sidecar instead of overwriting it", async () => {
+  // Given: a repo template that differs, and an earlier import already saved for review.
+  const item = settings();
+  const [harness, file] = item.name.split("/") as [string, string];
+  const template = join(sources.harnesses, harness, "templates", file);
+  await fixture.put(template, '{"other": true}\n');
+  const sidecar = join(fixture.repo, "imported", harness, file);
+  await fixture.put(sidecar, '{"edited": "by hand"}\n');
+  // When: the differing settings are imported again.
+  const result = await writeImport({ repo: fixture.repo, sources, items: [item] });
+  // Then: the hand-edited sidecar survives and the write is a conflict.
+  expect(result.writes).toMatchObject([{ status: "conflict" }]);
+  expect(await readFile(sidecar, "utf8")).toBe('{"edited": "by hand"}\n');
+});

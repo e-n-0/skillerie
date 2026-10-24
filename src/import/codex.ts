@@ -5,12 +5,12 @@ import { parse as parseToml, TomlDate } from "smol-toml";
 import type { TomlTable, TomlValue } from "smol-toml";
 import type { Diagnostic, JsonValue, McpServer } from "../core/types.js";
 import { unmanaged } from "../install/merges.js";
-import { agentMarkdown, hashJson, hashText } from "./shared.js";
+import { agentMarkdown, failureReason, hashJson, hashText } from "./shared.js";
 import { scrubServer, scrubSettings } from "./secrets.js";
 import type { FoundItem, ScanContext, ScanResult } from "./types.js";
 
 function message(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+  return failureReason(error);
 }
 
 function missing(error: unknown): boolean {

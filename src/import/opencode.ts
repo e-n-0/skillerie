@@ -5,7 +5,7 @@ import type { Diagnostic, JsonValue, McpServer } from "../core/types.js";
 import { parseFrontmatter } from "../model/frontmatter.js";
 import { isJsonObject } from "../model/json.js";
 import { scrubServer, scrubSettings } from "./secrets.js";
-import { agentMarkdown, hashJson, hashText } from "./shared.js";
+import { agentMarkdown, failureReason, hashJson, hashText, safeDiagnostics } from "./shared.js";
 import type { FoundItem, ScanContext, ScanResult } from "./types.js";
 
 function warning(code: string, message: string, file: string, line?: number): Diagnostic {
@@ -24,7 +24,7 @@ function errorCode(error: unknown): string | undefined {
 }
 
 function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+  return failureReason(error);
 }
 
 function readWarning(code: string, file: string, error: unknown): Diagnostic {
@@ -66,7 +66,7 @@ async function scanAgents(
 
     const parsed = parseFrontmatter(content, file);
     if (parsed.diagnostics.length) {
-      diagnostics.push(...parsed.diagnostics);
+      diagnostics.push(...safeDiagnostics(parsed.diagnostics));
       continue;
     }
     const description = parsed.frontmatter?.["description"];

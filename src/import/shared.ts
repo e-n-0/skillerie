@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto";
+import { TomlError } from "smol-toml";
 import { stringify } from "yaml";
+import type { Diagnostic } from "../core/types.js";
 
 function canonical(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
@@ -41,4 +43,28 @@ export function agentMarkdown(input: {
     { lineWidth: 0 },
   );
   return `---\n${frontmatter}---\n${input.body.replace(/^\n+/, "").trimEnd()}\n`;
+}
+
+/** An error whose message skillerie wrote itself and that never quotes file content. */
+export class ImportError extends Error {
+  override readonly name = "ImportError";
+}
+
+/** A read or parse failure described without file content: parser messages quote the source, which may hold secrets. */
+export function failureReason(error: unknown): string {
+  if (error instanceof ImportError) return error.message;
+  if (error instanceof TomlError)
+    return `Invalid TOML at line ${error.line}, column ${error.column}.`;
+  if (error instanceof SyntaxError) {
+    const at = /position (\d+)/.exec(error.message)?.[1];
+    return `Invalid JSON${at === undefined ? "" : ` at position ${at}`}.`;
+  }
+  if (error instanceof Error && "code" in error && typeof error.code === "string")
+    return `Cannot read the file (${error.code}).`;
+  return "The file could not be read or parsed.";
+}
+
+/** Frontmatter diagnostics keep their location but not the parser's text, which can quote the file. */
+export function safeDiagnostics(diagnostics: readonly Diagnostic[]): Diagnostic[] {
+  return diagnostics.map((diagnostic) => ({ ...diagnostic, message: "Invalid frontmatter." }));
 }

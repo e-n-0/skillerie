@@ -581,10 +581,7 @@ it.each([
   "compares MCP settings as $inRepo for repository $content",
   async ({ content, inRepo, warning }) => {
     // Given: MCP settings exist without any source servers, and the repository varies independently.
-    await fixture.put(
-      join(fixture.homes.omo, "mcp.json"),
-      '{"mcpServers":{},"settings":{"timeoutMs":30000}}',
-    );
+    await fixture.put(join(fixture.homes.omo, "mcp.json"), '{"timeoutMs":30000,"mcpServers":{}}');
     const file = join(fixture.repo, "mcp.json");
     if (content === undefined) await rm(file);
     else await fixture.put(file, content);

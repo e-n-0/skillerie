@@ -231,3 +231,36 @@ it("warns when Pi settings JSONC is invalid", async () => {
     }),
   );
 });
+
+it("imports servers defined in settings.json, letting mcp.json win on a shared name", async () => {
+  // Given: Pi settings defining one extra server and one that mcp.json also defines.
+  const home = await mkdtemp(join(tmpdir(), "skillerie-pi-settings-servers-"));
+  try {
+    await mkdir(home, { recursive: true });
+    await writeFile(
+      join(home, "settings.json"),
+      JSON.stringify({
+        theme: "dark",
+        mcpServers: {
+          extra: { url: "https://extra.example.com/mcp" },
+          search: { url: "https://other.example.com/mcp" },
+        },
+      }),
+    );
+    await writeFile(
+      join(home, "mcp.json"),
+      JSON.stringify({ mcpServers: { search: { url: "https://search.example.com/mcp" } } }),
+    );
+    // When: the Pi home is scanned.
+    const result = await scanPi(home, { env: {}, managed: () => false });
+    // Then: both servers are offered once, mcp.json's search wins, and the collision is reported.
+    const servers = result.items.filter((item) => item.kind === "mcp");
+    expect(servers.map((item) => [item.name, item.path.endsWith("settings.json")])).toEqual([
+      ["extra", true],
+      ["search", false],
+    ]);
+    expect(result.diagnostics.map((item) => item.code)).toContain("import.mcp");
+  } finally {
+    await rm(home, { recursive: true, force: true });
+  }
+});

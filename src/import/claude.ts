@@ -2,7 +2,7 @@ import { lstat, readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import type { Diagnostic } from "../core/types.js";
 import { parseFrontmatter } from "../model/frontmatter.js";
-import { agentMarkdown, hashText } from "./shared.js";
+import { agentMarkdown, failureReason, hashText, safeDiagnostics } from "./shared.js";
 import type { FoundItem, ScanContext, ScanResult } from "./types.js";
 
 function warning(code: string, message: string, file: string): Diagnostic {
@@ -21,7 +21,7 @@ function errorCode(error: unknown): string | undefined {
 }
 
 function readWarning(code: string, file: string, error: unknown): Diagnostic {
-  const message = error instanceof Error ? error.message : String(error);
+  const message = failureReason(error);
   return warning(code, `Could not read ${file}: ${message}`, file);
 }
 
@@ -60,7 +60,7 @@ async function scanAgents(
 
     const parsed = parseFrontmatter(content, file);
     if (parsed.diagnostics.length) {
-      diagnostics.push(...parsed.diagnostics);
+      diagnostics.push(...safeDiagnostics(parsed.diagnostics));
       continue;
     }
 

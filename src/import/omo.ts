@@ -4,7 +4,7 @@ import { parse, printParseErrorCode } from "jsonc-parser";
 import type { ParseError } from "jsonc-parser";
 import type { Diagnostic, JsonObject, JsonValue, McpServer } from "../core/types.js";
 import { isJsonObject, pointerToken } from "../model/json.js";
-import { agentMarkdown, hashJson, hashText } from "./shared.js";
+import { agentMarkdown, failureReason, hashJson, hashText } from "./shared.js";
 import { scrubServer, scrubSettings } from "./secrets.js";
 import type { FoundItem, FoundSettings, ScanContext, ScanResult } from "./types.js";
 
@@ -56,7 +56,7 @@ async function readUnmanaged(
     diagnostics.push({
       severity: settingsFile ? "warn" : "error",
       code: settingsFile ? "import.settings" : "import.read",
-      message: error instanceof Error ? error.message : "Unable to read file.",
+      message: failureReason(error),
       file: path,
     });
     return undefined;
@@ -305,18 +305,8 @@ function scanMcpSettings(
     });
     return;
   }
-  const settings = value["settings"];
-  if (settings === undefined) return;
-  if (!isJsonObject(settings)) {
-    diagnostics.push({
-      severity: "warn",
-      code: "import.settings",
-      message: "Skipping MCP settings with an unsupported shape.",
-      file,
-      jsonPath: "/settings",
-    });
-    return;
-  }
+  // The OMO adapter spreads MCP settings at the document root beside mcpServers.
+  const { mcpServers: _servers, ...settings } = value;
   if (Object.keys(settings).length > 0) addSettings(settings, file, "mcp-settings", "json", items);
 }
 

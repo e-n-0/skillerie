@@ -1,12 +1,12 @@
 import { chmod, lstat, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { parse, type ParseError } from "jsonc-parser";
 import { parse as parseToml, stringify as stringifyToml } from "smol-toml";
 import type { ResolvedSourcePaths } from "../config/sources.js";
 import type { Diagnostic, JsonValue } from "../core/types.js";
 import { scaffoldFiles } from "../init/templates.js";
 import { isJsonObject } from "../model/json.js";
-import { hashFiles, hashJson, hashText } from "./shared.js";
+import { ImportError, failureReason, hashFiles, hashJson, hashText } from "./shared.js";
 import type { FoundItem, FoundMcp, FoundSettings, ImportWrite } from "./types.js";
 
 const conflict = "already in the repository with different content";
@@ -58,6 +58,30 @@ async function skillFiles(root: string, paths?: readonly string[]) {
       return { relPath, content: await readFile(path), mode: entry.mode & 0o777 };
     }),
   );
+}
+
+/** skillerie names are single lowercase path components; anything else could escape the repository. */
+const SKILLERIE_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const SETTINGS_NAME = /^(opencode|codex|omo|pi)\/([A-Za-z0-9][\w.-]*)$/;
+
+function safeName(item: FoundItem): boolean {
+  switch (item.kind) {
+    case "skill":
+    case "agent":
+    case "mcp":
+      return item.name.length <= 64 && SKILLERIE_NAME.test(item.name);
+    case "settings":
+      return (
+        item.name === "mcp-settings" || (SETTINGS_NAME.test(item.name) && !item.name.includes(".."))
+      );
+    case "instructions":
+      return true;
+  }
+}
+
+function inside(root: string, target: string): boolean {
+  const rel = relative(resolve(root), resolve(target));
+  return rel !== "" && rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel);
 }
 
 function result(
@@ -202,6 +226,23 @@ export async function writeImport(input: {
   const mcp: (FoundMcp | FoundSettings)[] = [];
   for (const item of input.items) {
     let target = item.path;
+    if (!safeName(item)) {
+      writes.push(
+        result(
+          item,
+          item.path,
+          "conflict",
+          "not a valid skillerie name; rename it in the harness home to import it",
+        ),
+      );
+      diagnostics.push({
+        severity: "warn",
+        code: "import.name",
+        message: `Skipped ${item.kind} with an invalid name; skillerie names are lowercase words joined by hyphens.`,
+        file: item.path,
+      });
+      continue;
+    }
     try {
       switch (item.kind) {
         case "skill": {
@@ -213,6 +254,11 @@ export async function writeImport(input: {
             break;
           }
           const files = await skillFiles(item.path, item.files);
+          if (
+            !inside(input.repo, target) ||
+            files.some((file) => !inside(target, join(target, file.relPath)))
+          )
+            throw new ImportError("Refusing to write outside the repository.");
           await directory(target);
           for (const file of files) {
             const path = join(target, file.relPath);
@@ -233,6 +279,8 @@ export async function writeImport(input: {
                 ? "unchanged"
                 : "conflict";
           if (status === "written") {
+            if (!inside(input.repo, target))
+              throw new ImportError("Refusing to write outside the repository.");
             await directory(dirname(target));
             await writeFile(target, item.markdown);
           }
@@ -313,9 +361,27 @@ export async function writeImport(input: {
             item.format === "toml"
               ? stringifyToml(item.value)
               : `${JSON.stringify(item.value, null, 2)}\n`;
+          if (!inside(input.repo, target))
+            throw new ImportError("Refusing to write outside the repository.");
+          if (state === "different") {
+            // A link at the sidecar path could point into a harness home; never read or write through it.
+            if ((await lstat(target).catch(() => undefined))?.isSymbolicLink())
+              throw new ImportError(
+                `imported/${harness}/${file} is a link; remove it, then import again.`,
+              );
+            const saved = await settingsTemplateState(target, item, diagnostics);
+            if (saved === "same") {
+              writes.push(result(item, target, "unchanged", notes.join("; ")));
+              break;
+            }
+            if (saved === "different") {
+              notes[0] = `imported/${harness}/${file} already holds a different version; merge or delete it, then import again`;
+              writes.push(result(item, target, "conflict", notes.join("; ")));
+              break;
+            }
+          }
           await directory(dirname(target));
-          if (state === "different") await textAt(target);
-          await writeFile(target, content, { flag: state === "missing" ? "wx" : "w" });
+          await writeFile(target, content, { flag: "wx" });
           writes.push(result(item, target, "written", notes.join("; ")));
           break;
         }
@@ -339,7 +405,7 @@ export async function writeImport(input: {
       diagnostics.push({
         severity: "error",
         code: "import.write",
-        message: error.message,
+        message: failureReason(error),
         file: target,
       });
     }
@@ -352,7 +418,7 @@ export async function writeImport(input: {
       diagnostics.push({
         severity: "error",
         code: "import.write",
-        message: error.message,
+        message: failureReason(error),
         file: input.sources.mcp,
       });
     }

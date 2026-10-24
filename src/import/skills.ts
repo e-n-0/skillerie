@@ -2,7 +2,7 @@ import { readFile, readdir, stat } from "node:fs/promises";
 import { join, relative, resolve, sep } from "node:path";
 import type { Diagnostic } from "../core/types.js";
 import { parseFrontmatter } from "../model/frontmatter.js";
-import { hashFiles } from "./shared.js";
+import { failureReason, hashFiles, safeDiagnostics } from "./shared.js";
 import type { FoundSkill, ImportSource, ScanContext, ScanResult } from "./types.js";
 
 interface SkillFile {
@@ -16,7 +16,7 @@ function errorCode(error: unknown): string | undefined {
 }
 
 function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+  return failureReason(error);
 }
 
 function diagnostic(file: string, message: string): Diagnostic {
@@ -140,7 +140,7 @@ export async function scanSkillDirectories(
       const parsed = parseFrontmatter(markdown.content.toString("utf8"), skillFile);
       if (parsed.diagnostics.length) {
         diagnostics.push(
-          ...parsed.diagnostics.map((entry) => ({
+          ...safeDiagnostics(parsed.diagnostics).map((entry) => ({
             ...entry,
             severity: "warn" as const,
             code: "import.skill",
