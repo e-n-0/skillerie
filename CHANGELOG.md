@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.19 - 2026-10-25
+
+### Fixes
+
+- OMO's AGENTS.md no longer repeats instructions.md when the opencode harness is installed at its default path, since OMO already loads that file. (#18)
+
 ## 0.0.18 - 2026-10-24
 
 ### Features
