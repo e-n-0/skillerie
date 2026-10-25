@@ -16,7 +16,7 @@ OMO splits its files across two directories:
 | Path | Kind | Content |
 |-|-|-|
 | `<home>/omo.jsonc` | link | Your template with generated agents merged in |
-| `<agent dir>/AGENTS.md` | link | `instructions.md` followed by every rule |
+| `<agent dir>/AGENTS.md` | link | `instructions.md` followed by every rule (see [Instructions](#instructions)) |
 | `<agent dir>/mcp.json` | link | MCP servers |
 | `<agent dir>/skills/` | exclusive tree | One directory per skill |
 | `<agent dir>/models.json` | link | Only when you provide a `models.json` template |
@@ -31,6 +31,10 @@ Put your settings in `harnesses/omo/templates/omo.jsonc`. Every source agent is 
 Use `agents.harnesses.omo.disabled` to keep an agent out of OMO.
 
 Generated agents get `description`, `prompt`, and `max_turns` (from `maxTurns`). The prompt starts with a few notes: inherit the parent model, pass questions to the parent, and read the listed `skills` first.
+
+## Instructions
+
+OMO also loads `~/.config/opencode/AGENTS.md` as a user rule. When the opencode harness is enabled with its default path, that file already holds `instructions.md`, so OMO's `AGENTS.md` contains only the rules. Otherwise it starts with `instructions.md`.
 
 ## mcp.json
 

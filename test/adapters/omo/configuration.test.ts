@@ -222,6 +222,39 @@ it.each([
   },
 );
 
+function withOpencode(ctx: ResolvedContext, opencode: { enabled: boolean; path: string }) {
+  return {
+    ...ctx,
+    snapshot: {
+      ...ctx.snapshot,
+      config: {
+        ...ctx.snapshot.config,
+        harnesses: { ...ctx.snapshot.config.harnesses, opencode: { ...opencode, options: {} } },
+      },
+    },
+  };
+}
+
+it.each([
+  ["enabled at its default path", true, ".config/opencode", false],
+  ["disabled", false, ".config/opencode", true],
+  ["installed elsewhere", true, "opencode-alt", true],
+])(
+  "keeps instructions out of AGENTS.md only when opencode is %s and OMO already loads them",
+  async (_case, enabled, relPath, expected) => {
+    // Given: an opencode harness whose AGENTS.md OMO may or may not read.
+    const ctx = withOpencode(sample.ctx, {
+      enabled,
+      path: join(sample.ctx.snapshot.config.paths.home, relPath),
+    });
+    // When: OMO renders its instructions.
+    const output = rendered(await adapter.render(ctx), "AGENTS.md");
+    // Then: instructions appear once across both files, and rules always remain.
+    expect(output.includes("<!-- Source: instructions.md -->")).toBe(expected);
+    expect(output).toContain("<!-- Rule: rules/style.md -->");
+  },
+);
+
 it("omits gated rules when the engine evaluates requires", async () => {
   // Given: a new rule gated on an unavailable environment variable.
   await writeFile(

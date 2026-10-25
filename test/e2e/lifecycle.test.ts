@@ -96,7 +96,7 @@ it("restores the initial home when uninstall removes managed content", async () 
 }, 30_000);
 
 it("preserves other harness links when install selects one harness", async () => {
-  // Given: all harnesses installed, followed by changed source instructions.
+  // Given: all harnesses installed, followed by changed source instructions and rules.
   const { home, repo } = suite.sandbox;
   expect((await suite.run(["install"])).code).toBe(0);
   const prior = await Promise.all(
@@ -106,6 +106,8 @@ it("preserves other harness links when install selects one harness", async () =>
   );
   const original = await readFile(join(repo, "instructions.md"), "utf8");
   await writeFile(join(repo, "instructions.md"), original + "\nAn additional instruction.\n");
+  const rule = await readFile(join(repo, "rules/style.md"), "utf8");
+  await writeFile(join(repo, "rules/style.md"), rule + "\nAn additional rule.\n");
   // When: installation selects only Codex.
   const result = await suite.run(["install", "--harness", "codex", "--json"]);
   // Then: the shared current generation still serves every installed harness.
