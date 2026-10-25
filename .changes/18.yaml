@@ -1,0 +1,2 @@
+type: fix
+description: OMO's AGENTS.md no longer repeats instructions.md when the opencode harness is installed at its default path, since OMO already loads that file.
