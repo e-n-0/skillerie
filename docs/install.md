@@ -81,6 +81,12 @@ skillerie install [--harness <h>] [--profile <name>] [--check] [--verbose] [--fo
 
 Validates, renders, plans, and applies. You don't need to run `sync` first.
 
+Install planning hashes filesystem snapshots incrementally, so large existing trees
+such as extension bundles don't require an additional full-tree JSON string in memory.
+Fingerprints remain compatible with existing installation manifests.
+Recovery journals retain replacement data without duplicating the preimages that
+recovery reads from disk and moves into backups.
+
 <!-- prettier-ignore -->
 | Flag | Effect |
 |-|-|

@@ -1,10 +1,33 @@
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { mkdir, readFile, readlink, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readlink, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it } from "vitest";
-import { install } from "../../src/install/index.js";
+import { install, uninstall } from "../../src/install/index.js";
 import { deferred, fixture } from "./helpers.js";
+
+it("bounds the recovery journal while retaining a large replaced file", async () => {
+  // Given: an existing file must survive an interrupted install and uninstall.
+  const f = await fixture();
+  const original = "x".repeat(1024 * 1024);
+  await writeFile(f.target, original);
+  let journalBytes = 0;
+  // When: installation is interrupted after persisting its recovery journal.
+  await expect(
+    install({
+      ...f.options,
+      testHook: async () => {
+        journalBytes = (await stat(join(f.harnessHome, ".skillerie", "journal.json"))).size;
+        throw new Error("simulated interruption");
+      },
+    }),
+  ).rejects.toThrow("simulated interruption");
+  await install(f.options);
+  await uninstall(f.options);
+  // Then: recovery retains the original without duplicating it in the journal.
+  expect(await readFile(f.target, "utf8")).toBe(original);
+  expect(journalBytes).toBeLessThan(2 * original.length);
+});
 
 it("rolls forward after interruption at every journal mutation boundary", async () => {
   // Given: a transaction installs a nested copy and its manifest.
