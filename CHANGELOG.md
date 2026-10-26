@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.20 - 2026-10-26
+
+### Fixes
+
+- Avoid install crashes when existing extension trees contain large bundled binaries by hashing snapshots incrementally and keeping recovery journals smaller. (#19)
+
 ## 0.0.19 - 2026-10-25
 
 ### Fixes
