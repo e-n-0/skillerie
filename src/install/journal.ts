@@ -1,7 +1,16 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, rename, rm } from "node:fs/promises";
 import { dirname, join, relative } from "node:path";
-import { atomicJson, fingerprint, image, putImage, safeAncestors, text, within } from "./images.js";
+import {
+  absent,
+  atomicJson,
+  fingerprint,
+  image,
+  putImage,
+  safeAncestors,
+  text,
+  within,
+} from "./images.js";
 import { readJournal, statePath } from "./storage.js";
 import { InstallError } from "./types.js";
 import type { InstallOptions, Journal, PlannedAction } from "./types.js";
@@ -64,7 +73,8 @@ export async function transact(
     const layout = within(home, action.target)
       ? relative(home, action.target)
       : action.target.slice(1);
-    return { ...action, backup: join(`${batch}-${index}`, layout) };
+    // Replay reads the live preimage and moves it to backup; it never uses step.before.
+    return { ...action, before: absent, backup: join(`${batch}-${index}`, layout) };
   });
   const journal: Journal = { version: 1, next: 0, steps };
   await atomicJson(statePath(options.harnessHome, "journal.json"), journal);

@@ -55,7 +55,36 @@ export async function image(path: string): Promise<Image> {
 }
 
 export function fingerprint(value: Image): string {
-  return `sha256:${createHash("sha256").update(JSON.stringify(value)).digest("hex")}`;
+  const hash = createHash("sha256");
+  // Stream the existing JSON representation so large trees need no second full-size copy.
+  function visit(entry: Image): void {
+    switch (entry.kind) {
+      case "absent":
+      case "link":
+        hash.update(JSON.stringify(entry));
+        return;
+      case "file":
+        // Image data is base64, so none of its characters need JSON escaping.
+        hash.update('{"kind":"file","data":"').update(entry.data);
+        hash.update(`","mode":${entry.mode}}`);
+        return;
+      case "directory": {
+        hash.update(`{"kind":"directory","mode":${entry.mode},"children":{`);
+        let separator = "";
+        for (const [name, child] of Object.entries(entry.children)) {
+          hash.update(separator).update(JSON.stringify(name)).update(":");
+          visit(child);
+          separator = ",";
+        }
+        hash.update("}}");
+        return;
+      }
+      default:
+        assertNever(entry);
+    }
+  }
+  visit(value);
+  return `sha256:${hash.digest("hex")}`;
 }
 
 export function fileImage(text: string, mode = 0o644): Image {

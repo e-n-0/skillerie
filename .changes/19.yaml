@@ -1,0 +1,2 @@
+type: fix
+description: Avoid install crashes when existing extension trees contain large bundled binaries by hashing snapshots incrementally and keeping recovery journals smaller.
