@@ -25,6 +25,8 @@ export interface InstallationResult {
   readonly owner?: RepoIdentity;
   readonly managedPaths: readonly string[];
   readonly actions: readonly InstallLine[];
+  /** Linked home paths whose generated content changes without a planned action. */
+  readonly updates: readonly string[];
   readonly userEdits: readonly string[];
 }
 
