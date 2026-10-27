@@ -3,12 +3,13 @@ import { cp, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { afterEach, beforeAll, beforeEach, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, expect, it } from "vitest";
 import type { Environment } from "../../src/core/types.js";
 import { brokenCases, fakeAdapter, fixtures, sampleRepo } from "../engine/helpers.js";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
-const cli = join(root, "dist/cli.js");
+let compiled: string;
+let cli: string;
 let sample: Awaited<ReturnType<typeof sampleRepo>>;
 
 function execute(args: readonly string[], env: Environment = process.env) {
@@ -36,14 +37,25 @@ function execute(args: readonly string[], env: Environment = process.env) {
   });
 }
 
+// Compile into a temporary package so a test run never replaces the checkout's dist.
 beforeAll(async () => {
+  compiled = await mkdtemp(join(tmpdir(), "skillerie-built-"));
+  await cp(join(root, "package.json"), join(compiled, "package.json"));
+  await symlink(join(root, "schema"), join(compiled, "schema"), "dir");
+  await symlink(join(root, "node_modules"), join(compiled, "node_modules"), "dir");
   const result = await execute([
     join(root, "node_modules/typescript/bin/tsc"),
     "-p",
     "tsconfig.build.json",
+    "--outDir",
+    join(compiled, "dist"),
   ]);
   expect(result, result.stderr + result.stdout).toMatchObject({ code: 0 });
+  cli = join(compiled, "dist/cli.js");
 }, 30_000);
+afterAll(async () => {
+  if (compiled) await rm(compiled, { recursive: true, force: true });
+});
 beforeEach(async () => {
   sample = await sampleRepo();
 });
@@ -77,7 +89,7 @@ it("reports the package.json version when the release job re-versions the packag
   // Given: a copy of the built package whose package.json carries a release version.
   const pkg = await mkdtemp(join(tmpdir(), "skillerie-pkg-"));
   try {
-    await cp(join(root, "dist"), join(pkg, "dist"), { recursive: true });
+    await cp(join(compiled, "dist"), join(pkg, "dist"), { recursive: true });
     await cp(join(root, "schema"), join(pkg, "schema"), { recursive: true });
     await symlink(join(root, "node_modules"), join(pkg, "node_modules"));
     const manifest = JSON.parse(await readFile(join(root, "package.json"), "utf8")) as object;
