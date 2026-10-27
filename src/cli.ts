@@ -308,6 +308,10 @@ export function formatInstallReport(
           const [done, planned, code] = ACTION_LABELS[kind];
           return paint(code, `${count} ${options.check ? planned : done}`);
         });
+    if (installation.updates.length && !options.uninstall)
+      parts.push(
+        paint("36", `${installation.updates.length} ${options.check ? "to update" : "updated"}`),
+      );
     if (installation.userEdits.length)
       parts.push(paint("1;31", `${installation.userEdits.length} edited by you`));
     if (parts.length) changed += 1;
@@ -318,6 +322,9 @@ export function formatInstallReport(
       for (const action of installation.actions)
         if (action.kind !== "SKIP")
           lines.push(`      ${paint("2", action.kind.padEnd(6))} ${short(action.target)}`);
+    if (options.verbose && !options.uninstall)
+      for (const target of installation.updates)
+        lines.push(`      ${paint("2", "UPDATE")} ${short(target)}`);
     for (const target of installation.userEdits)
       lines.push(`      ${paint("31", "edited")} ${short(target)}`);
   }
@@ -388,7 +395,9 @@ export function formatStatusReport(
   const width = Math.max(0, ...result.installations.map((item) => item.harness.length));
   const homeWidth = Math.max(0, ...result.installations.map((item) => short(item.home).length));
   for (const installation of result.installations) {
-    const pending = installation.actions.filter((action) => action.kind !== "SKIP").length;
+    const pending =
+      installation.actions.filter((action) => action.kind !== "SKIP").length +
+      installation.updates.length;
     let state: string;
     if (!installation.installed) state = paint("2", "not installed");
     else if (installation.owner && options.repo && installation.owner.path !== options.repo)

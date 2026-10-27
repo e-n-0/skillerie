@@ -24,6 +24,7 @@ const result = (overrides: Partial<LifecycleResult> = {}): LifecycleResult => ({
         { kind: "SKIP", target: `${home}/.config/opencode/skills` },
         { kind: "BACKUP", target: `${home}/.config/opencode/opencode.jsonc` },
       ],
+      updates: [],
       userEdits: [],
     },
     {
@@ -32,10 +33,30 @@ const result = (overrides: Partial<LifecycleResult> = {}): LifecycleResult => ({
       installed: true,
       managedPaths: [],
       actions: [],
+      updates: [],
       userEdits: [],
     },
   ],
   ...overrides,
+});
+
+it("counts linked files whose generated content changed as updates", () => {
+  // Given: a home whose only change is new content behind an existing link.
+  const [first, second] = result().installations;
+  if (!first || !second) throw new Error("fixture");
+  const updated = { ...second, updates: [`${home}/.codex/AGENTS.md`] };
+  const report = result({ installations: [{ ...first, actions: [] }, updated] });
+  // When: the install, check, and status reports are formatted.
+  const installed = formatInstallReport(report, { home, verbose: true });
+  const checked = formatInstallReport(report, { home, check: true });
+  const status = formatStatusReport({ ...report, clean: false }, { home });
+  // Then: the update is counted, listed verbosely, and no report claims everything is current.
+  expect(installed).toContain("  codex     ~/.codex            1 updated\n");
+  expect(installed).toContain("      UPDATE ~/.codex/AGENTS.md");
+  expect(installed).toContain("Installed into 1 of 2 harness homes.");
+  expect(checked).toContain("1 to update");
+  expect(checked).toContain("Run skillerie install to apply these changes");
+  expect(status).toContain("  codex     ~/.codex            installed, 1 change pending");
 });
 
 it("summarizes each harness home with counts and shortened paths after an install", () => {

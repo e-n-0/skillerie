@@ -84,14 +84,14 @@ Validates, renders, plans, and applies. You don't need to run `sync` first.
 <!-- prettier-ignore -->
 | Flag | Effect |
 |-|-|
-| `--harness <h>` | Install one enabled harness. Every enabled harness is still rendered into the new generation so other installed homes keep working. |
+| `--harness <h>` | Install one enabled harness. The other enabled harnesses keep the generated files they were last installed with, so their homes don't change; a harness with nothing generated yet gets a fresh render. |
 | `--profile <name>` | Install this [profile](config.md#profiles) instead of the first one. The manifest records it. |
 | `--check` | Print the plan and exit. No harness home is changed and no lock is taken; external resolution may populate its cache. |
 | `--verbose` | List every file under its harness, not just the counts |
 | `--force` | Back up and replace managed files you edited, instead of preserving them, and take over TOML definitions you wrote that a managed block also defines. A taken-over definition comes back when skillerie stops managing that key, for example after switching to a profile without it. |
 | `--takeover` | Install into a home that another repository's manifest owns |
 
-The output has one row per harness home, with counts such as `12 linked, 1 backed up`, or `up to date`; `--check` says `to link` instead. Files you edited are always listed under their harness, and a last line says what happened or what to run next. With `--check`, differences between the active generation and a fresh render are summarized as a count. On a terminal, a status line on stderr shows each phase while it runs (loading, rendering, planning, installing). Paths under your home directory are shortened to `~`.
+The output has one row per harness home, with counts such as `12 linked, 1 backed up`, or `up to date`; `--check` says `to link` instead. `N updated` (`to update` with `--check`) counts files whose links stay the same but whose generated content changes, such as an MCP server added to a linked `mcp.json`. Files you edited are always listed under their harness, and a last line says what happened or what to run next. With `--check`, differences between the active generation and a fresh render are summarized as a count. On a terminal, a status line on stderr shows each phase while it runs (loading, rendering, planning, installing). Paths under your home directory are shortened to `~`.
 
 With `--verbose`, each change is listed under its harness:
 
@@ -104,6 +104,7 @@ With `--verbose`, each change is listed under its harness:
 | `SEED <path>` | Copy a seed file that doesn't exist yet |
 | `BACKUP <path>` | Move the existing entry to the backup directory first |
 | `SKIP <path>` | Nothing to write here (a directory, or a preserved user edit) |
+| `UPDATE <path>` | The link stays, but the generated file behind it changes |
 | `USER-EDIT <path>` | A managed file you changed; left alone |
 | `DRIFT <reason> <path>` | The active generation differs from a fresh render (`--check` only) |
 
@@ -117,7 +118,7 @@ With `--verbose`, each change is listed under its harness:
 skillerie status
 ```
 
-Prints one row per enabled harness home: `not installed`, `installed from <repo>` when another repository owns it, `installed, N changes pending`, `installed, N edited by you` (each edited file is listed), or `installed, up to date`. A count of generated files that differ from a fresh render and a line saying what to run follow. Exit status is 0 only when everything is installed and current.
+Prints one row per enabled harness home: `not installed`, `installed from <repo>` when another repository owns it, `installed, N changes pending` (links to create or replace, merges, and linked files whose generated content changes), `installed, N edited by you` (each edited file is listed), or `installed, up to date`. A count of generated files that differ from a fresh render and a line saying what to run follow. Exit status is 0 only when everything is installed and current.
 
 Without `--profile`, `status` compares against the profile the homes were installed with, when they all recorded the same one; otherwise it uses the first profile. If you pass a different `--profile` than the installed one, it warns with `install.profile.mismatch`, for example `Installed with profile "work"; pass --profile work to compare against it.` A TOML conflict for that profile is reported in the comparison instead of stopping it.
 

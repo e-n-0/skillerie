@@ -95,29 +95,45 @@ it("restores the initial home when uninstall removes managed content", async () 
   expect((await tree(suite.sandbox.backup)).length).toBeGreaterThan(1);
 }, 30_000);
 
-it("preserves other harness links when install selects one harness", async () => {
-  // Given: all harnesses installed, followed by changed source instructions and rules.
+it("changes only the selected harness when install selects one harness", async () => {
+  // Given: all harnesses installed, followed by a new MCP server in the source.
   const { home, repo } = suite.sandbox;
   expect((await suite.run(["install"])).code).toBe(0);
+  const others = [".config/opencode/opencode.jsonc", ".pi/agent/mcp.json"];
   const prior = await Promise.all(
-    [".config/opencode/AGENTS.md", ".omo/content/AGENTS.md", ".pi/agent/AGENTS.md"].map(
-      async (path) => ({ path, content: await readFile(join(home, path), "utf8") }),
-    ),
+    others.map(async (path) => ({ path, content: await readFile(join(home, path), "utf8") })),
   );
-  const original = await readFile(join(repo, "instructions.md"), "utf8");
-  await writeFile(join(repo, "instructions.md"), original + "\nAn additional instruction.\n");
-  const rule = await readFile(join(repo, "rules/style.md"), "utf8");
-  await writeFile(join(repo, "rules/style.md"), rule + "\nAn additional rule.\n");
-  // When: installation selects only Codex.
-  const result = await suite.run(["install", "--harness", "codex", "--json"]);
-  // Then: the shared current generation still serves every installed harness.
+  const mcp = JSON.parse(await readFile(join(repo, "mcp.json"), "utf8")) as {
+    mcpServers: Record<string, unknown>;
+  };
+  mcp.mcpServers["design"] = { url: "https://design.example.com/mcp" };
+  await writeFile(join(repo, "mcp.json"), JSON.stringify(mcp));
+  // When: the check and then the installation select only OMO.
+  const check = await suite.run(["install", "--harness", "omo", "--check"]);
+  const result = await suite.run(["install", "--harness", "omo", "--json"]);
+  // Then: OMO's linked file is reported and changed, and the other homes keep their content.
+  expect(check.stdout).toMatch(/omo\s+\S+\s+1 to update\n/);
   expect(result.code, result.stderr + result.stdout).toBe(0);
   expect(JSON.parse(result.stdout)).toMatchObject({
     valid: true,
-    installations: [{ harness: "codex" }],
+    installations: [
+      { harness: "omo", actions: [], updates: [join(home, ".omo/content/mcp.json")] },
+    ],
   });
+  expect(await readFile(join(home, ".omo/content/mcp.json"), "utf8")).toContain("design");
   for (const file of prior)
-    expect(await readFile(join(home, file.path), "utf8")).not.toBe(file.content);
+    expect(await readFile(join(home, file.path), "utf8")).toBe(file.content);
+  // And: status names the other homes' pending updates until a full install applies them.
+  const status = JSON.parse((await suite.run(["status", "--json"])).stdout) as {
+    installations: { harness: string; updates: string[] }[];
+  };
+  expect(status.installations.find((item) => item.harness === "pi")?.updates).toEqual([
+    join(home, ".pi/agent/mcp.json"),
+  ]);
+  const full = await suite.run(["install"]);
+  expect(full.stdout).toContain("Installed into 3 of 4 harness homes.");
+  for (const file of prior)
+    expect(await readFile(join(home, file.path), "utf8")).toContain("design");
 }, 30_000);
 
 it("uninstalls from ownership when source content has been removed", async () => {

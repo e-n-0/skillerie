@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { registry } from "../adapters/index.js";
-import type { Diagnostic, RenderedFile } from "../core/types.js";
+import type { Diagnostic, HarnessId, RenderedFile } from "../core/types.js";
 import { loadConfig } from "../config/index.js";
 import { runDoctor } from "../doctor/index.js";
 import { swapCurrent, writeGeneration } from "../fs/index.js";
@@ -12,6 +12,7 @@ import { installationResult, installOptions } from "./installation.js";
 import { generationDrift, installRendered, previewInstall } from "./install-preview.js";
 import type { InstallationResult, LifecycleOptions, LifecycleResult } from "./lifecycle-types.js";
 import { contextFor, renderHarness } from "./render.js";
+import { filesHash, scopedFiles } from "./scoped-generation.js";
 import { HARNESS_IDS, hasErrors } from "./types.js";
 import { uninstallRepo } from "./uninstall-repo.js";
 import { validateRepo } from "./validation.js";
@@ -60,6 +61,7 @@ async function manageRepo(repoDir: string, options: LifecycleOptions): Promise<L
   const root = join(snapshot.config.paths.cache, "current");
   const files: RenderedFile[] = [...externalStateFiles(snapshot)];
   const selected: InstallOptions[] = [];
+  const rendered: HarnessId[] = [];
   for (const harness of HARNESS_IDS) {
     if (!snapshot.config.harnesses[harness]?.enabled) continue;
     const load = (options.adapters ?? registry).get(harness);
@@ -76,9 +78,10 @@ async function manageRepo(repoDir: string, options: LifecycleOptions): Promise<L
       throw new InstallError("engine.adapter", `Adapter does not match harness ${harness}.`);
     const input = { model, snapshot, env };
     options.onProgress?.(`Rendering ${harness}`);
-    const rendered = await renderHarness(adapter, input);
-    files.push(...rendered.files);
-    diagnostics.push(...rendered.diagnostics);
+    const output = await renderHarness(adapter, input);
+    files.push(...output.files);
+    diagnostics.push(...output.diagnostics);
+    rendered.push(harness);
     if (!options.harness || harness === options.harness)
       selected.push(
         installOptions({
@@ -92,15 +95,20 @@ async function manageRepo(repoDir: string, options: LifecycleOptions): Promise<L
       );
   }
   if (hasErrors(diagnostics)) return { ...profile, valid: false, diagnostics, installations };
+  const { harness: only } = options;
+  const published = only
+    ? await scopedFiles({ root, files, others: rendered.filter((harness) => harness !== only) })
+    : files;
+  const drift = await generationDrift({ root, files: published });
   const prepared: PreparedInstallation[] = [];
   for (const install of selected) {
     options.onProgress?.(`Planning ${install.harness}`);
     const manifest = await readManifest(install.harnessHome);
     try {
-      const plan = await previewInstall(install, { root, files });
+      const plan = await previewInstall(install, { root, files: published });
       diagnostics.push(...plan.findings);
       prepared.push({ options: install, plan, manifest });
-      installations.push(installationResult({ options: install, plan, manifest }));
+      installations.push(installationResult({ options: install, plan, manifest, drift, root }));
     } catch (error) {
       if (!(error instanceof InstallError)) throw error;
       diagnostics.push({
@@ -116,6 +124,7 @@ async function manageRepo(repoDir: string, options: LifecycleOptions): Promise<L
         ...(manifest ? { owner: manifest.repo } : {}),
         managedPaths: manifest?.entries.map((entry) => entry.target) ?? [],
         actions: [],
+        updates: [],
         userEdits: [],
       });
     }
@@ -138,7 +147,6 @@ async function manageRepo(repoDir: string, options: LifecycleOptions): Promise<L
           file: item.options.harnessHome,
         });
     }
-    const drift = await generationDrift({ root, files });
     const clean =
       !userEdits &&
       drift.length === 0 &&
@@ -166,7 +174,6 @@ async function manageRepo(repoDir: string, options: LifecycleOptions): Promise<L
     };
   }
   if (options.check) {
-    const drift = await generationDrift({ root, files });
     return {
       ...profile,
       valid:
@@ -178,20 +185,26 @@ async function manageRepo(repoDir: string, options: LifecycleOptions): Promise<L
       installations,
     };
   }
-  // Publish every enabled harness, even for a selected install, so existing links stay live.
-  const generation = await writeGeneration(snapshot.config.paths.cache, snapshot, files);
+  // A selected install still publishes every enabled harness so existing links stay live.
+  const generation = await writeGeneration(
+    snapshot.config.paths.cache,
+    only ? { ...snapshot, hash: filesHash(published) } : snapshot,
+    published,
+  );
   await swapCurrent(snapshot.config.paths.cache, generation);
   const installed: InstallationResult[] = [];
   for (const item of prepared) {
     options.onProgress?.(`Installing ${item.options.harness}`);
-    const plan = await installRendered(item.options, { root, files });
+    const plan = await installRendered(item.options, { root, files: published });
     diagnostics.push(
       ...plan.findings.filter(
         (finding) =>
           !diagnostics.some((prior) => JSON.stringify(prior) === JSON.stringify(finding)),
       ),
     );
-    installed.push(installationResult({ options: item.options, plan, manifest: plan.manifest }));
+    installed.push(
+      installationResult({ options: item.options, plan, manifest: plan.manifest, drift, root }),
+    );
   }
   if (!installed.some((item) => item.userEdits.length))
     diagnostics.push(
