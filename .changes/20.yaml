@@ -1,0 +1,6 @@
+type: fix
+description: >-
+  `install --harness` now leaves the other harness homes unchanged instead of
+  publishing their new content too. `install`, `install --check` and `status`
+  count linked files whose generated content changes, so a new MCP server no
+  longer shows as `up to date`.
