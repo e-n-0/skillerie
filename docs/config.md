@@ -334,7 +334,7 @@ The install manifest records which profile was installed, and `status` compares 
 |-|-|-|
 | `agentsSkillsDir` | `dedupe`, `preserve` | `dedupe` |
 
-Some harnesses also load skills from `~/.agents/skills`, where a copy can shadow a managed skill. With `dedupe`, the OMO adapter adds an exclusion pattern for each managed skill (`!**/<name>/**`) to the `skills` array of OMO's `settings.json`. `preserve` leaves that file alone. `doctor` warns about shadowing entries in either mode.
+Some harnesses also load skills from `~/.agents/skills`, where a copy can shadow a managed skill. With `dedupe`, the OMO adapter adds an exclusion pattern for each managed skill's copy in that directory (`!<home>/.agents/skills/<name>/**`) to the `skills` array of OMO's `settings.json`. `preserve` leaves that file alone. `doctor` warns about shadowing entries in either mode.
 
 ### lint
 
