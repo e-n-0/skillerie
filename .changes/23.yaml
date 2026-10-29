@@ -1,0 +1,6 @@
+type: fix
+description: >-
+  When a skill or other entry stops being installed, for example because its
+  `requires.bin` binary is missing, `skillerie install` no longer puts back a
+  broken symlink left from an older layout. Repeated installs stop reporting
+  the same backups.
