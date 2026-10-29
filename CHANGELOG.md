@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.23 - 2026-10-29
+
+### Fixes
+
+- When a skill or other entry stops being installed, for example because its `requires.bin` binary is missing, `skillerie install` no longer puts back a broken symlink left from an older layout. Repeated installs stop reporting the same backups. (#23)
+
 ## 0.0.22 - 2026-10-29
 
 ### Fixes
