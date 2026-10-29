@@ -66,6 +66,23 @@ it("backs up a foreign dangling symlink rather than deleting it", async () => {
   expect(await readlink(f.target)).toBe(f.source);
 });
 
+it("does not restore a dangling preimage link when an entry stops being managed", async () => {
+  // Given: the managed link replaced a foreign link whose destination is missing.
+  const f = await fixture();
+  await symlink("missing-foreign", f.target);
+  await install(f.options);
+  // When: the entry leaves the managed set, then the same set is installed again.
+  const released = await install({ ...f.options, actions: [] });
+  const rerun = await install({ ...f.options, actions: [] });
+  // Then: the path is removed rather than relinked, and the rerun has nothing to do.
+  expect(released.actions).toEqual([
+    expect.objectContaining({ target: f.target, after: { kind: "absent" } }),
+  ]);
+  expect(rerun.actions).toEqual([]);
+  expect((await snapshot(f.harnessHome))["config"]).toBeUndefined();
+  expect(await backups(f.options)).toContain("link:missing-foreign");
+});
+
 it("restores the starting HOME after an install and uninstall roundtrip", async () => {
   // Given: HOME has unrelated files and an absent nested target.
   const f = await fixture();

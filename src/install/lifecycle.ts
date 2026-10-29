@@ -1,12 +1,34 @@
-import { rmdir } from "node:fs/promises";
+import { rmdir, stat } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
 import { absent, fileImage, fingerprint, hasCode, text } from "./images.js";
 import { restoreMerge } from "./merges.js";
 import type { Planner } from "./planner.js";
 import { statePath } from "./storage.js";
 import { assertNever } from "./types.js";
-import type { ManagedEntry, PlannedAction } from "./types.js";
+import type { Image, ManagedEntry, PlannedAction } from "./types.js";
 
-export async function releaseEntry(planner: Planner, entry: ManagedEntry): Promise<void> {
+/**
+ * During install, a preimage link whose destination is gone restores as absent: putting it back
+ * would only recreate a broken link (often into a layout the repository has since dropped). The
+ * backup taken when skillerie took the path still holds the original link. Uninstall keeps
+ * restoring the exact starting state.
+ */
+async function restorable(target: string, preimage: Image, uninstall: boolean): Promise<Image> {
+  if (uninstall || preimage.kind !== "link") return preimage;
+  try {
+    await stat(resolve(dirname(target), preimage.source));
+    return preimage;
+  } catch (error) {
+    if (hasCode(error, "ENOENT") || hasCode(error, "ENOTDIR")) return absent;
+    throw error;
+  }
+}
+
+export async function releaseEntry(
+  planner: Planner,
+  entry: ManagedEntry,
+  uninstall = false,
+): Promise<void> {
   for (const parent of planner.previous.values()) {
     if (
       parent.kind === "directory" &&
@@ -32,7 +54,7 @@ export async function releaseEntry(planner: Planner, entry: ManagedEntry): Promi
       }
       return;
     case "owned":
-      await planner.set(entry.target, entry.preimage);
+      await planner.set(entry.target, await restorable(entry.target, entry.preimage, uninstall));
       return;
     case "merge": {
       if (current.kind === "absent") return;

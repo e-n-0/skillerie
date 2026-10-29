@@ -40,7 +40,7 @@ export async function uninstall(options: InstallOptions): Promise<InstallPlan> {
     const planner = await prepare(options);
     for (const directory of created) planner.directories.add(directory);
     for (const entry of [...planner.previous.values()].reverse())
-      await releaseEntry(planner, entry);
+      await releaseEntry(planner, entry, true);
     const metadata = manifestStep(
       planner,
       await image(statePath(options.harnessHome, "manifest.json")),
