@@ -46,7 +46,7 @@ Each skill's frontmatter keeps `name`, `description`, `license`, `compatibility`
 
 ## Skill deduplication
 
-With `shared.agentsSkillsDir: dedupe` (the default), skillerie appends `!**/<name>/**` for each managed skill to the `skills` array in `<agent dir>/settings.json`, so copies elsewhere don't shadow managed skills. Only those entries are removed on uninstall. Set `preserve` to leave the file alone.
+With `shared.agentsSkillsDir: dedupe` (the default), skillerie appends `!<home>/.agents/skills/<name>/**` for each managed skill to the `skills` array in `<agent dir>/settings.json`, so copies in `~/.agents/skills` don't shadow managed skills. The patterns use the absolute path because OMO applies them to every skills directory it scans, including its own. Only those entries are removed on uninstall. Set `preserve` to leave the file alone.
 
 ## Restrictions and questions
 

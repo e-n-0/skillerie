@@ -1,0 +1,6 @@
+type: fix
+description: >-
+  OMO loads the skills skillerie installs again. With
+  `shared.agentsSkillsDir: dedupe`, the skill exclusions in OMO's
+  `settings.json` now cover only copies in `~/.agents/skills`, not the managed
+  skills themselves.

@@ -1,3 +1,4 @@
+import { homedir } from "node:os";
 import { join } from "node:path";
 import type { Action, ResolvedContext } from "../../core/types.js";
 import { agentDirectory } from "./capabilities.js";
@@ -46,13 +47,19 @@ export function targets(ctx: ResolvedContext, generationDir: string): readonly A
   }
   const skills = ctx.model.harnesses.omo?.skills ?? [];
   if (ctx.snapshot.config.shared.agentsSkillsDir === "dedupe" && skills.length) {
+    // OMO applies these patterns to its own skills directory too, so anchor them to the shared copies.
+    const sharedSkillsDir = escapeGlob(join(ctx.env["HOME"] || homedir(), ".agents", "skills"));
     actions.push({
       kind: "jsonArrayMerge",
       target: join(root, "settings.json"),
       jsonPath: "/skills",
       blockId: "skillerie.omo.skills",
-      values: skills.map((skill) => `!**/${skill.name}/**`).sort(),
+      values: skills.map((skill) => `!${sharedSkillsDir}/${skill.name}/**`).sort(),
     });
   }
   return actions;
+}
+
+function escapeGlob(path: string): string {
+  return path.replace(/[*?[\]{}()!+@\\]/g, "\\$&");
 }

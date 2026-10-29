@@ -86,13 +86,28 @@ it("describes every install target when templates and seeds are present", async 
     target: join(root, "settings.json"),
     jsonPath: "/skills",
     blockId: "skillerie.omo.skills",
-    values: ["!**/implement/**", "!**/outline/**", "!**/verify/**"],
+    values: ["implement", "outline", "verify"].map(
+      (name) => `!${join(ctx.env["HOME"] ?? "", ".agents/skills", name)}/**`,
+    ),
   });
   expect(result.files).toContainEqual({
     kind: "file",
     relPath: "seeds/state.json",
     content: Buffer.from('{"completed":[]}\n'),
     mode: 0o600,
+  });
+});
+
+it("escapes glob characters in the home directory of shared skill exclusions", () => {
+  // Given: a home directory containing glob syntax.
+  const ctx = { ...sample.ctx, env: { ...sample.ctx.env, HOME: "/home/a{b,c}*" } };
+  // When: target actions are planned.
+  const merge = adapter
+    .targets(ctx, join(sample.root, "current"))
+    .find((action) => action.kind === "jsonArrayMerge");
+  // Then: every exclusion matches only that literal shared skills directory.
+  expect(merge).toMatchObject({
+    values: expect.arrayContaining(["!/home/a\\{b,c\\}\\*/.agents/skills/implement/**"]),
   });
 });
 
