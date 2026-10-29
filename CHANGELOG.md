@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.22 - 2026-10-29
+
+### Fixes
+
+- OMO loads the skills skillerie installs again. With `shared.agentsSkillsDir: dedupe`, the skill exclusions in OMO's `settings.json` now cover only copies in `~/.agents/skills`, not the managed skills themselves. (#22)
+
 ## 0.0.21 - 2026-10-27
 
 ### Fixes
